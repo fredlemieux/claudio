@@ -21,6 +21,7 @@ function App() {
     createSession,
     switchSession,
     updateMessages,
+    setClaudeSessionId,
     deleteSession,
   } = useSessions();
 
@@ -158,11 +159,14 @@ function App() {
     }
 
     try {
-      const command = Command.create("claude", [
-        "-p", trimmed,
-        "--output-format", "stream-json",
-        "--no-input",
-      ]);
+      // Build command args — use --resume for follow-up messages in existing Claude sessions
+      const currentSession = sessions.find((s) => s.id === sessionId);
+      const claudeSessionId = currentSession?.claudeSessionId;
+      const args = claudeSessionId
+        ? ["-p", trimmed, "--output-format", "stream-json", "--no-input", "--resume", claudeSessionId]
+        : ["-p", trimmed, "--output-format", "stream-json", "--no-input"];
+
+      const command = Command.create("claude", args);
 
       let fullContent = "";
       let latestMessages = newMessages;
@@ -202,6 +206,11 @@ function App() {
                 setDrawerOpen(true);
               }
             }
+          }
+
+          // Capture Claude session ID for conversation continuity
+          if (event.type === "result" && event.session_id) {
+            setClaudeSessionId(sessionId!, event.session_id);
           }
 
           if (event.type === "tool_result") {

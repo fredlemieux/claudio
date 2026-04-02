@@ -5,6 +5,7 @@ export interface Session {
   id: string;
   title: string;
   messages: Message[];
+  claudeSessionId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -90,6 +91,16 @@ export function useSessions() {
     });
   }, []);
 
+  const setClaudeSessionId = useCallback((sessionId: string, claudeSessionId: string) => {
+    setSessions((prev) => {
+      const next = prev.map((s) =>
+        s.id === sessionId ? { ...s, claudeSessionId } : s
+      );
+      saveSessions(next);
+      return next;
+    });
+  }, []);
+
   const deleteSession = useCallback((id: string) => {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
@@ -109,6 +120,7 @@ export function useSessions() {
     createSession,
     switchSession,
     updateMessages,
+    setClaudeSessionId,
     deleteSession,
   };
 }
