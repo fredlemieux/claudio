@@ -7,19 +7,80 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   height: 100vh;
 }
 
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #1e1e3a;
   border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Selection */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: inherit;
+}
+
+/* Focus visible outlines */
+:focus-visible {
+  outline: 1px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
+}
+
+/* Remove focus outline on non-keyboard interaction */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Textarea reset */
+textarea {
+  field-sizing: content;
+}
+
+/* Code block scrollbar */
+pre::-webkit-scrollbar {
+  height: 4px;
+}
+pre::-webkit-scrollbar-thumb {
+  background: #1e1e3a;
+  border-radius: 2px;
+}
+
+/* Smooth transitions for layout shifts */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Animate message appearance */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.2s ease-out;
 }

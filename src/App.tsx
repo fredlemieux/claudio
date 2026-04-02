@@ -512,7 +512,7 @@ function App() {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex flex-col ${
+            className={`flex flex-col animate-fade-in-up ${
               msg.role === "user" ? "items-end" : "items-start"
             }`}
           >
