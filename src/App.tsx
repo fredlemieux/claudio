@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Command, type Child } from "@tauri-apps/plugin-shell";
+import { open } from "@tauri-apps/plugin-dialog";
 import { MessageContent } from "./components/MessageContent";
 import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
@@ -22,6 +23,7 @@ function App() {
     switchSession,
     updateMessages,
     setClaudeSessionId,
+    setWorkingDirectory,
     deleteSession,
   } = useSessions();
 
@@ -92,6 +94,18 @@ function App() {
     setAlgoCriteria([]);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [createSession]);
+
+  const pickDirectory = useCallback(async () => {
+    const dir = await open({ directory: true, title: "Select working directory" });
+    if (dir && typeof dir === "string") {
+      let sid = activeSessionId;
+      if (!sid) {
+        const session = createSession();
+        sid = session.id;
+      }
+      setWorkingDirectory(sid, dir);
+    }
+  }, [activeSessionId, createSession, setWorkingDirectory]);
 
   const stopStreaming = useCallback(async () => {
     if (childRef.current) {
@@ -166,11 +180,12 @@ function App() {
       // Build command args — use --resume for follow-up messages in existing Claude sessions
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
+      const cwd = currentSession?.workingDirectory;
       const args = claudeSessionId
         ? ["-p", trimmed, "--output-format", "stream-json", "--no-input", "--resume", claudeSessionId]
         : ["-p", trimmed, "--output-format", "stream-json", "--no-input"];
 
-      const command = Command.create("claude", args);
+      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
 
       let fullContent = "";
       let latestMessages = newMessages;
@@ -337,6 +352,20 @@ function App() {
             Session active
           </span>
         )}
+        <button
+          onClick={pickDirectory}
+          className="ml-3 flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] text-xs transition-colors max-w-[200px] truncate"
+          title={activeSession?.workingDirectory || "Select working directory"}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+            <path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" />
+          </svg>
+          <span className="truncate">
+            {activeSession?.workingDirectory
+              ? activeSession.workingDirectory.split("/").pop() || activeSession.workingDirectory
+              : "No directory"}
+          </span>
+        </button>
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
