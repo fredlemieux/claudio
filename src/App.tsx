@@ -3,6 +3,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { MessageContent } from "./components/MessageContent";
 import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
+import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
 import { useSkills, filterSkills } from "./hooks/useSkills";
 import type { Message } from "./types";
 import "highlight.js/styles/github-dark.css";
@@ -13,6 +14,8 @@ function App() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [slashIndex, setSlashIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -109,7 +112,39 @@ function App() {
                   )
                 );
               }
+              // Track agent tool use
+              if (block.type === "tool_use" && block.name === "Agent") {
+                const agentId = block.id || crypto.randomUUID();
+                const newAgent: AgentInfo = {
+                  id: agentId,
+                  name: block.input?.description || "Agent",
+                  type: block.input?.subagent_type || "general-purpose",
+                  status: "running",
+                  description: (block.input?.prompt || "").slice(0, 120),
+                  output: "",
+                  startedAt: Date.now(),
+                };
+                setAgents((prev) => [...prev, newAgent]);
+                setDrawerOpen(true);
+              }
             }
+          }
+
+          // Track agent completion via tool_result
+          if (event.type === "tool_result") {
+            setAgents((prev) =>
+              prev.map((a) =>
+                a.id === event.tool_use_id
+                  ? {
+                      ...a,
+                      status: "completed" as const,
+                      output: typeof event.content === "string"
+                        ? event.content.slice(0, 500)
+                        : JSON.stringify(event.content).slice(0, 500),
+                    }
+                  : a
+              )
+            );
           }
         } catch {
           // Non-JSON line, ignore
@@ -189,7 +224,7 @@ function App() {
       {/* Title bar */}
       <div className="flex items-center h-12 px-4 bg-[#0e0e1a] border-b border-[#1e1e3a]">
         <span className="text-blue-400 font-semibold text-sm">Claudio</span>
-        <span className="ml-2 text-[#475569] text-xs">M3</span>
+        <span className="ml-2 text-[#475569] text-xs">M4</span>
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setPaletteOpen(true)}
@@ -319,6 +354,13 @@ function App() {
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onSelect={(skill) => insertSkillCommand(skill.name)}
+      />
+
+      {/* Agent Drawer */}
+      <AgentDrawer
+        agents={agents}
+        isOpen={drawerOpen}
+        onToggle={() => setDrawerOpen((o) => !o)}
       />
     </div>
   );
