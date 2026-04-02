@@ -7,6 +7,7 @@ import { SlashAutocomplete } from "./components/SlashAutocomplete";
 import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
 import { ToolUseIndicator, type ToolCall } from "./components/ToolUseIndicator";
 import { AlgorithmTracker, parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "./components/AlgorithmTracker";
+import { DebugConsole, type LogEntry } from "./components/DebugConsole";
 import { SessionSidebar } from "./components/SessionSidebar";
 import { SettingsPanel, useSettings } from "./components/SettingsPanel";
 import { useSkills, filterSkills } from "./hooks/useSkills";
@@ -40,6 +41,8 @@ function App() {
   const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>([]);
   const [slashIndex, setSlashIndex] = useState(0);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
+  const [debugLogs, setDebugLogs] = useState<LogEntry[]>([]);
+  const [debugVisible, setDebugVisible] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const childRef = useRef<Child | null>(null);
@@ -47,6 +50,13 @@ function App() {
   const { settings } = useSettings();
 
   const messages = activeSession?.messages || [];
+
+  const addLog = useCallback((level: LogEntry["level"], source: LogEntry["source"], message: string) => {
+    setDebugLogs((prev) => [
+      ...prev.slice(-500), // Keep last 500 entries
+      { id: crypto.randomUUID(), timestamp: Date.now(), level, source, message },
+    ]);
+  }, []);
 
   // Slash autocomplete state
   const slashMatch = input.match(/^\/(\S*)$/);
@@ -193,10 +203,13 @@ function App() {
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
 
+      addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
       const command = Command.create("claude", args, cwd ? { cwd } : undefined);
 
       let fullContent = "";
       let latestMessages = newMessages;
+      let stdoutBuffer = ""; // Line buffer for partial JSON chunks
+      let stderrAccumulator = ""; // Collect stderr for error display
 
       const updateContent = (text: string) => {
         fullContent = text;
@@ -211,138 +224,170 @@ function App() {
         }
       };
 
-      command.stdout.on("data", (line: string) => {
-        try {
-          const event = JSON.parse(line);
+      const processJsonLine = (jsonLine: string) => {
+        const event = JSON.parse(jsonLine);
+        addLog("debug", "stdout", `event: ${event.type}${event.subtype ? `.${event.subtype}` : ""}`);
 
-          // Full assistant message (cumulative content)
-          if (event.type === "assistant" && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === "text") {
-                updateContent(block.text);
-              }
-              if (block.type === "tool_use") {
-                const toolId = block.id || crypto.randomUUID();
-                // Track all tool calls
-                const inputStr = block.input
-                  ? typeof block.input === "string"
-                    ? block.input.slice(0, 200)
-                    : JSON.stringify(block.input).slice(0, 200)
-                  : "";
-                setToolCalls((prev) => {
-                  if (prev.some((t) => t.id === toolId)) return prev;
-                  return [...prev, {
-                    id: toolId,
-                    name: block.name,
-                    status: "running" as const,
-                    input: inputStr,
-                    startedAt: Date.now(),
-                  }];
-                });
-
-                // Agent-specific tracking for the drawer
-                if (block.name === "Agent") {
-                  const newAgent: AgentInfo = {
-                    id: toolId,
-                    name: block.input?.description || "Agent",
-                    type: block.input?.subagent_type || "general-purpose",
-                    status: "running",
-                    description: (block.input?.prompt || "").slice(0, 120),
-                    output: "",
-                    startedAt: Date.now(),
-                  };
-                  setAgents((prev) => [...prev, newAgent]);
-                  setDrawerOpen(true);
-                }
+        // Full assistant message (cumulative content)
+        if (event.type === "assistant" && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === "text") {
+              updateContent(block.text);
+            }
+            if (block.type === "tool_use") {
+              const toolId = block.id || crypto.randomUUID();
+              const inputStr = block.input
+                ? typeof block.input === "string"
+                  ? block.input.slice(0, 200)
+                  : JSON.stringify(block.input).slice(0, 200)
+                : "";
+              setToolCalls((prev) => {
+                if (prev.some((t) => t.id === toolId)) return prev;
+                return [...prev, {
+                  id: toolId, name: block.name, status: "running" as const,
+                  input: inputStr, startedAt: Date.now(),
+                }];
+              });
+              if (block.name === "Agent") {
+                setAgents((prev) => [...prev, {
+                  id: toolId, name: block.input?.description || "Agent",
+                  type: block.input?.subagent_type || "general-purpose",
+                  status: "running", description: (block.input?.prompt || "").slice(0, 120),
+                  output: "", startedAt: Date.now(),
+                }]);
+                setDrawerOpen(true);
               }
             }
           }
+        }
 
-          // Incremental text delta
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-            fullContent += event.delta.text;
-            updateContent(fullContent);
+        // Incremental text delta
+        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+          fullContent += event.delta.text;
+          updateContent(fullContent);
+        }
+
+        // Capture Claude session ID and metadata from result event
+        if (event.type === "result") {
+          addLog("info", "process", `Result: session=${event.session_id || "none"}, cost=$${event.cost_usd ?? event.total_cost_usd ?? "?"}`);
+          if (event.session_id) {
+            setClaudeSessionId(sessionId!, event.session_id);
           }
-
-          // Capture Claude session ID and metadata from result event
-          if (event.type === "result") {
-            if (event.session_id) {
-              setClaudeSessionId(sessionId!, event.session_id);
-            }
-            // Update assistant message with cost and duration
-            const costUsd = event.cost_usd ?? event.total_cost_usd;
-            const durationMs = event.duration_ms ?? (Date.now() - now);
-            if (costUsd !== undefined || durationMs !== undefined) {
-              latestMessages = latestMessages.map((m) =>
-                m.id === assistantMsg.id
-                  ? { ...m, costUsd, durationMs }
-                  : m
-              );
-              updateMessages(sessionId!, latestMessages);
-            }
-          }
-
-          if (event.type === "tool_result") {
-            const resultStr = typeof event.content === "string"
-              ? event.content.slice(0, 500)
-              : JSON.stringify(event.content).slice(0, 500);
-            const isError = event.is_error === true;
-
-            // Update tool calls tracker
-            setToolCalls((prev) =>
-              prev.map((t) =>
-                t.id === event.tool_use_id
-                  ? { ...t, status: isError ? "error" as const : "completed" as const, output: resultStr, completedAt: Date.now() }
-                  : t
-              )
+          const costUsd = event.cost_usd ?? event.total_cost_usd;
+          const durationMs = event.duration_ms ?? (Date.now() - now);
+          if (costUsd !== undefined || durationMs !== undefined) {
+            latestMessages = latestMessages.map((m) =>
+              m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
             );
-
-            // Update agent drawer
-            setAgents((prev) =>
-              prev.map((a) =>
-                a.id === event.tool_use_id
-                  ? { ...a, status: "completed" as const, output: resultStr }
-                  : a
-              )
-            );
+            updateMessages(sessionId!, latestMessages);
           }
-        } catch {
-          // Non-JSON line, ignore
+        }
+
+        if (event.type === "tool_result") {
+          const resultStr = typeof event.content === "string"
+            ? event.content.slice(0, 500)
+            : JSON.stringify(event.content).slice(0, 500);
+          const isError = event.is_error === true;
+          setToolCalls((prev) => prev.map((t) =>
+            t.id === event.tool_use_id
+              ? { ...t, status: isError ? "error" as const : "completed" as const, output: resultStr, completedAt: Date.now() }
+              : t
+          ));
+          setAgents((prev) => prev.map((a) =>
+            a.id === event.tool_use_id
+              ? { ...a, status: "completed" as const, output: resultStr }
+              : a
+          ));
+        }
+      };
+
+      // Line-buffered stdout handler — handles partial JSON chunks from Tauri shell
+      command.stdout.on("data", (chunk: string) => {
+        stdoutBuffer += chunk;
+        const lines = stdoutBuffer.split("\n");
+        // Keep the last element (may be incomplete)
+        stdoutBuffer = lines.pop() || "";
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+          try {
+            processJsonLine(trimmedLine);
+          } catch (e) {
+            addLog("warn", "stdout", `Parse error: ${trimmedLine.slice(0, 200)}`);
+          }
         }
       });
 
-      command.stderr.on("data", (line: string) => {
-        console.error("claude stderr:", line);
+      command.stderr.on("data", (chunk: string) => {
+        const msg = chunk.trim();
+        if (msg) {
+          stderrAccumulator += (stderrAccumulator ? "\n" : "") + msg;
+          addLog("error", "stderr", msg);
+          // Auto-open debug console on errors
+          setDebugVisible(true);
+        }
       });
 
       const child = await command.spawn();
       childRef.current = child;
+      addLog("info", "process", `Process spawned (PID unknown — Tauri shell)`);
 
       command.on("close", (data) => {
-        console.log("claude exited with code:", data.code);
+        // Process any remaining buffered data
+        if (stdoutBuffer.trim()) {
+          try {
+            processJsonLine(stdoutBuffer.trim());
+          } catch {
+            addLog("warn", "stdout", `Unparsed final buffer: ${stdoutBuffer.trim().slice(0, 200)}`);
+          }
+          stdoutBuffer = "";
+        }
+
+        addLog("info", "process", `Process exited: code=${data.code}, signal=${data.signal ?? "none"}`);
+
+        // If no content was produced and we have stderr, show it as the assistant message
+        if (!fullContent && stderrAccumulator) {
+          latestMessages = latestMessages.map((m) =>
+            m.id === assistantMsg.id
+              ? { ...m, content: `**Error from Claude CLI:**\n\n\`\`\`\n${stderrAccumulator}\n\`\`\`` }
+              : m
+          );
+          updateMessages(sessionId!, latestMessages);
+        } else if (!fullContent && data.code !== 0) {
+          latestMessages = latestMessages.map((m) =>
+            m.id === assistantMsg.id
+              ? { ...m, content: `**Process exited with code ${data.code}**\n\nCheck the debug console for details.` }
+              : m
+          );
+          updateMessages(sessionId!, latestMessages);
+        }
+
         childRef.current = null;
         setIsStreaming(false);
       });
 
       command.on("error", (error: string) => {
-        console.error("claude error:", error);
+        addLog("error", "process", `Spawn error: ${error}`);
         latestMessages = latestMessages.map((m) =>
           m.id === assistantMsg.id
-            ? { ...m, content: `Error: ${error}` }
+            ? { ...m, content: `**Failed to start Claude:**\n\n\`\`\`\n${error}\n\`\`\`\n\nCheck that \`claude\` is installed and in your PATH.` }
             : m
         );
         updateMessages(sessionId!, latestMessages);
         childRef.current = null;
         setIsStreaming(false);
+        setDebugVisible(true);
       });
     } catch (err) {
-      console.error("Failed to spawn claude:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      addLog("error", "app", `Failed to spawn claude: ${errMsg}`);
       updateMessages(sessionId!, newMessages.map((m) =>
         m.id === assistantMsg.id
-          ? { ...m, content: `Failed to start Claude: ${err}` }
+          ? { ...m, content: `**Failed to start Claude:**\n\n\`\`\`\n${errMsg}\n\`\`\`\n\nCheck the debug console for details.` }
           : m
       ));
       setIsStreaming(false);
+      setDebugVisible(true);
     }
   };
 
@@ -632,6 +677,13 @@ function App() {
         agents={agents}
         isOpen={drawerOpen}
         onToggle={() => setDrawerOpen((o) => !o)}
+      />
+
+      <DebugConsole
+        logs={debugLogs}
+        visible={debugVisible}
+        onToggle={() => setDebugVisible((v) => !v)}
+        onClear={() => setDebugLogs([])}
       />
     </div>
   );
