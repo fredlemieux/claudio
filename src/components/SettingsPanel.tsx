@@ -1,21 +1,27 @@
 import { useState } from "react";
 
+export type ClaudeModel = "opus" | "sonnet" | "haiku";
+
 interface Settings {
   userName: string;
   assistantName: string;
   theme: "dark" | "light";
+  model: ClaudeModel;
   showAlgorithm: boolean;
   voiceEnabled: boolean;
   autoOpenAgentDrawer: boolean;
+  showToolCalls: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   userName: "Fred",
   assistantName: "Greg",
   theme: "dark",
+  model: "sonnet",
   showAlgorithm: false,
   voiceEnabled: false,
   autoOpenAgentDrawer: true,
+  showToolCalls: true,
 };
 
 interface SettingsPanelProps {
@@ -98,6 +104,29 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             </div>
           </div>
 
+          {/* Model */}
+          <div>
+            <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Model</h3>
+            <div className="flex gap-2">
+              {(["opus", "sonnet", "haiku"] as const).map((model) => (
+                <button
+                  key={model}
+                  onClick={() => updateSettings({ model })}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    settings.model === model
+                      ? "bg-blue-600 text-white"
+                      : "bg-[#0a0a14] text-[#475569] border border-[#1e1e3a] hover:text-[#94a3b8]"
+                  }`}
+                >
+                  {model.charAt(0).toUpperCase() + model.slice(1)}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[#334155] mt-1.5">
+              Model used for Claude Code sessions
+            </p>
+          </div>
+
           {/* Display */}
           <div>
             <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Display</h3>
@@ -113,6 +142,12 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 description="Open drawer when agents spawn"
                 checked={settings.autoOpenAgentDrawer}
                 onChange={(v) => updateSettings({ autoOpenAgentDrawer: v })}
+              />
+              <Toggle
+                label="Show tool calls"
+                description="Display tool usage inline in chat"
+                checked={settings.showToolCalls}
+                onChange={(v) => updateSettings({ showToolCalls: v })}
               />
             </div>
           </div>

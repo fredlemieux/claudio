@@ -8,7 +8,7 @@ import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
 import { ToolUseIndicator, type ToolCall } from "./components/ToolUseIndicator";
 import { AlgorithmTracker, parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "./components/AlgorithmTracker";
 import { SessionSidebar } from "./components/SessionSidebar";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPanel, useSettings } from "./components/SettingsPanel";
 import { useSkills, filterSkills } from "./hooks/useSkills";
 import { useSessions } from "./hooks/useSessions";
 import type { Message } from "./types";
@@ -44,6 +44,7 @@ function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const childRef = useRef<Child | null>(null);
   const { skills } = useSkills();
+  const { settings } = useSettings();
 
   const messages = activeSession?.messages || [];
 
@@ -187,9 +188,10 @@ function App() {
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
+      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--no-input", "--model", settings.model];
       const args = claudeSessionId
-        ? ["-p", trimmed, "--output-format", "stream-json", "--no-input", "--resume", claudeSessionId]
-        : ["-p", trimmed, "--output-format", "stream-json", "--no-input"];
+        ? [...baseArgs, "--resume", claudeSessionId]
+        : baseArgs;
 
       const command = Command.create("claude", args, cwd ? { cwd } : undefined);
 
@@ -389,6 +391,9 @@ function App() {
         />
         <span className="text-blue-400 font-semibold text-sm ml-3">Claudio</span>
         <span className="ml-2 text-[#475569] text-xs">v0.1</span>
+        <span className="ml-1.5 text-[10px] text-[#334155] bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a]">
+          {settings.model}
+        </span>
         {isStreaming && (
           <span className="ml-2 flex items-center gap-1.5 text-blue-400 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
