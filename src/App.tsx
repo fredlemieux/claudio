@@ -177,7 +177,7 @@ function App() {
 
       {/* Input bar */}
       <div className="px-4 pb-4 pt-2">
-        <div className="flex items-end gap-2 bg-[#12121e] border border-[#1e1e3a] rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-[#12121e] border border-[#1e1e3a] rounded-2xl px-4 py-3">
           <textarea
             ref={inputRef}
             value={input}
@@ -185,7 +185,7 @@ function App() {
             onKeyDown={handleKeyDown}
             placeholder="Message Claudio..."
             rows={1}
-            className="flex-1 bg-transparent text-[#e2e8f0] text-sm resize-none outline-none placeholder-[#475569]"
+            className="flex-1 bg-transparent text-[#e2e8f0] text-sm resize-none outline-none placeholder-[#475569] leading-normal"
             style={{ maxHeight: "120px" }}
           />
           <button
