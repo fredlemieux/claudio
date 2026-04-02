@@ -4,6 +4,7 @@ import { MessageContent } from "./components/MessageContent";
 import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
 import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
+import { AlgorithmTracker, parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "./components/AlgorithmTracker";
 import { useSkills, filterSkills } from "./hooks/useSkills";
 import type { Message } from "./types";
 import "highlight.js/styles/github-dark.css";
@@ -16,6 +17,9 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [algoVisible, setAlgoVisible] = useState(false);
+  const [algoPhases, setAlgoPhases] = useState<AlgorithmPhase[]>([]);
+  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>([]);
   const [slashIndex, setSlashIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -111,6 +115,12 @@ function App() {
                       : m
                   )
                 );
+                // Parse algorithm phases and ISC from streamed content
+                const algoState = parseAlgorithmState(fullContent);
+                if (algoState.phases.some((p) => p.status !== "pending")) {
+                  setAlgoPhases(algoState.phases);
+                  setAlgoCriteria(algoState.criteria);
+                }
               }
               // Track agent tool use
               if (block.type === "tool_use" && block.name === "Agent") {
@@ -354,6 +364,14 @@ function App() {
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onSelect={(skill) => insertSkillCommand(skill.name)}
+      />
+
+      {/* Algorithm Tracker (opt-in, hidden by default) */}
+      <AlgorithmTracker
+        phases={algoPhases}
+        criteria={algoCriteria}
+        visible={algoVisible}
+        onToggle={() => setAlgoVisible((v) => !v)}
       />
 
       {/* Agent Drawer */}
