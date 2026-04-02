@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
+import { MessageContent } from "./components/MessageContent";
+import "highlight.js/styles/github-dark.css";
 import "./App.css";
 
 interface Message {
@@ -86,7 +88,7 @@ function App() {
       const child = await command.spawn();
 
       // Wait for process to finish
-      command.on("close", (data: { code: number }) => {
+      command.on("close", (data) => {
         console.log("claude exited with code:", data.code);
         setIsStreaming(false);
       });
@@ -165,9 +167,7 @@ function App() {
               {msg.role === "assistant" && !msg.content && isStreaming ? (
                 <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse rounded-sm" />
               ) : (
-                <pre className="whitespace-pre-wrap font-sans m-0">
-                  {msg.content}
-                </pre>
+                <MessageContent content={msg.content} role={msg.role} />
               )}
             </div>
           </div>
