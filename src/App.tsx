@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Command } from "@tauri-apps/plugin-shell";
+import { Command, type Child } from "@tauri-apps/plugin-shell";
 import { MessageContent } from "./components/MessageContent";
 import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
@@ -37,6 +37,7 @@ function App() {
   const [slashIndex, setSlashIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const childRef = useRef<Child | null>(null);
   const { skills } = useSkills();
 
   const messages = activeSession?.messages || [];
@@ -66,7 +67,15 @@ function App() {
     inputRef.current?.focus();
   }, []);
 
-  // Cmd+K to open palette, Cmd+, for settings
+  // Auto-resize textarea
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -103,11 +112,22 @@ function App() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [createSession]);
 
+  const stopStreaming = useCallback(async () => {
+    if (childRef.current) {
+      try {
+        await childRef.current.kill();
+      } catch (err) {
+        console.error("Failed to kill process:", err);
+      }
+      childRef.current = null;
+    }
+    setIsStreaming(false);
+  }, []);
+
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
 
-    // Auto-create session if none active
     let sessionId = activeSessionId;
     if (!sessionId) {
       const session = createSession();
@@ -132,6 +152,11 @@ function App() {
     setInput("");
     setIsStreaming(true);
 
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+
     try {
       const command = Command.create("claude", [
         "-p", trimmed,
@@ -140,6 +165,7 @@ function App() {
       ]);
 
       let fullContent = "";
+      let latestMessages = newMessages;
 
       command.stdout.on("data", (line: string) => {
         try {
@@ -149,19 +175,18 @@ function App() {
             for (const block of event.message.content) {
               if (block.type === "text") {
                 fullContent = block.text;
-                updateMessages(sessionId!, newMessages.map((m) =>
+                latestMessages = latestMessages.map((m) =>
                   m.id === assistantMsg.id
                     ? { ...m, content: fullContent }
                     : m
-                ));
-                // Parse algorithm phases and ISC from streamed content
+                );
+                updateMessages(sessionId!, latestMessages);
                 const algoState = parseAlgorithmState(fullContent);
                 if (algoState.phases.some((p) => p.status !== "pending")) {
                   setAlgoPhases(algoState.phases);
                   setAlgoCriteria(algoState.criteria);
                 }
               }
-              // Track agent tool use
               if (block.type === "tool_use" && block.name === "Agent") {
                 const agentId = block.id || crypto.randomUUID();
                 const newAgent: AgentInfo = {
@@ -179,7 +204,6 @@ function App() {
             }
           }
 
-          // Track agent completion via tool_result
           if (event.type === "tool_result") {
             setAgents((prev) =>
               prev.map((a) =>
@@ -205,23 +229,25 @@ function App() {
       });
 
       const child = await command.spawn();
+      childRef.current = child;
 
       command.on("close", (data) => {
         console.log("claude exited with code:", data.code);
+        childRef.current = null;
         setIsStreaming(false);
       });
 
       command.on("error", (error: string) => {
         console.error("claude error:", error);
-        updateMessages(sessionId!, newMessages.map((m) =>
+        latestMessages = latestMessages.map((m) =>
           m.id === assistantMsg.id
             ? { ...m, content: `Error: ${error}` }
             : m
-        ));
+        );
+        updateMessages(sessionId!, latestMessages);
+        childRef.current = null;
         setIsStreaming(false);
       });
-
-      void child;
     } catch (err) {
       console.error("Failed to spawn claude:", err);
       updateMessages(sessionId!, newMessages.map((m) =>
@@ -234,7 +260,6 @@ function App() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Slash autocomplete navigation
     if (showSlash && slashResults.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -278,7 +303,7 @@ function App() {
           onDelete={deleteSession}
         />
         <span className="text-blue-400 font-semibold text-sm ml-3">Claudio</span>
-        <span className="ml-2 text-[#475569] text-xs">M6</span>
+        <span className="ml-2 text-[#475569] text-xs">v0.1</span>
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
@@ -342,7 +367,11 @@ function App() {
               }`}
             >
               {msg.role === "assistant" && !msg.content && isStreaming ? (
-                <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse rounded-sm" />
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
               ) : (
                 <MessageContent content={msg.content} role={msg.role} />
               )}
@@ -365,30 +394,42 @@ function App() {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Message Claudio... (/ for skills)"
             rows={1}
             className="flex-1 bg-transparent text-[#e2e8f0] text-sm resize-none outline-none placeholder-[#475569] leading-normal"
             style={{ maxHeight: "120px" }}
           />
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || isStreaming}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-30 hover:bg-blue-500 transition-colors shrink-0"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-            </svg>
-          </button>
+          {isStreaming ? (
+            <button
+              onClick={stopStreaming}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shrink-0"
+              title="Stop (Esc)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm5-2.25A.75.75 0 0 1 7.75 7h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-4.5Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim()}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-30 hover:bg-blue-500 transition-colors shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+              </svg>
+            </button>
+          )}
         </div>
         <div className="flex items-center justify-between mt-2 px-2">
           <span className="text-[#334155] text-xs">
             Enter to send · Shift+Enter for newline · / for skills · ⌘K search
           </span>
           {isStreaming && (
-            <span className="text-blue-400 text-xs animate-pulse">
-              Streaming...
+            <span className="text-red-400 text-xs">
+              Press stop to cancel
             </span>
           )}
         </div>
