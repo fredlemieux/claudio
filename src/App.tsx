@@ -5,6 +5,7 @@ import { MessageContent } from "./components/MessageContent";
 import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
 import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
+import { ToolUseIndicator, type ToolCall } from "./components/ToolUseIndicator";
 import { AlgorithmTracker, parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "./components/AlgorithmTracker";
 import { SessionSidebar } from "./components/SessionSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -38,6 +39,7 @@ function App() {
   const [algoPhases, setAlgoPhases] = useState<AlgorithmPhase[]>([]);
   const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>([]);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const childRef = useRef<Child | null>(null);
@@ -173,6 +175,7 @@ function App() {
     updateMessages(sessionId, newMessages);
     setInput("");
     setIsStreaming(true);
+    setToolCalls([]);
 
     // Reset textarea height
     if (inputRef.current) {
@@ -216,19 +219,39 @@ function App() {
               if (block.type === "text") {
                 updateContent(block.text);
               }
-              if (block.type === "tool_use" && block.name === "Agent") {
-                const agentId = block.id || crypto.randomUUID();
-                const newAgent: AgentInfo = {
-                  id: agentId,
-                  name: block.input?.description || "Agent",
-                  type: block.input?.subagent_type || "general-purpose",
-                  status: "running",
-                  description: (block.input?.prompt || "").slice(0, 120),
-                  output: "",
-                  startedAt: Date.now(),
-                };
-                setAgents((prev) => [...prev, newAgent]);
-                setDrawerOpen(true);
+              if (block.type === "tool_use") {
+                const toolId = block.id || crypto.randomUUID();
+                // Track all tool calls
+                const inputStr = block.input
+                  ? typeof block.input === "string"
+                    ? block.input.slice(0, 200)
+                    : JSON.stringify(block.input).slice(0, 200)
+                  : "";
+                setToolCalls((prev) => {
+                  if (prev.some((t) => t.id === toolId)) return prev;
+                  return [...prev, {
+                    id: toolId,
+                    name: block.name,
+                    status: "running" as const,
+                    input: inputStr,
+                    startedAt: Date.now(),
+                  }];
+                });
+
+                // Agent-specific tracking for the drawer
+                if (block.name === "Agent") {
+                  const newAgent: AgentInfo = {
+                    id: toolId,
+                    name: block.input?.description || "Agent",
+                    type: block.input?.subagent_type || "general-purpose",
+                    status: "running",
+                    description: (block.input?.prompt || "").slice(0, 120),
+                    output: "",
+                    startedAt: Date.now(),
+                  };
+                  setAgents((prev) => [...prev, newAgent]);
+                  setDrawerOpen(true);
+                }
               }
             }
           }
@@ -258,16 +281,25 @@ function App() {
           }
 
           if (event.type === "tool_result") {
+            const resultStr = typeof event.content === "string"
+              ? event.content.slice(0, 500)
+              : JSON.stringify(event.content).slice(0, 500);
+            const isError = event.is_error === true;
+
+            // Update tool calls tracker
+            setToolCalls((prev) =>
+              prev.map((t) =>
+                t.id === event.tool_use_id
+                  ? { ...t, status: isError ? "error" as const : "completed" as const, output: resultStr, completedAt: Date.now() }
+                  : t
+              )
+            );
+
+            // Update agent drawer
             setAgents((prev) =>
               prev.map((a) =>
                 a.id === event.tool_use_id
-                  ? {
-                      ...a,
-                      status: "completed" as const,
-                      output: typeof event.content === "string"
-                        ? event.content.slice(0, 500)
-                        : JSON.stringify(event.content).slice(0, 500),
-                    }
+                  ? { ...a, status: "completed" as const, output: resultStr }
                   : a
               )
             );
@@ -452,6 +484,10 @@ function App() {
                 </div>
               ) : (
                 <MessageContent content={msg.content} role={msg.role} />
+              )}
+              {/* Show tool calls for the currently streaming assistant message */}
+              {msg.role === "assistant" && isStreaming && msg === messages[messages.length - 1] && toolCalls.length > 0 && (
+                <ToolUseIndicator tools={toolCalls} />
               )}
             </div>
             {/* Message metadata */}
