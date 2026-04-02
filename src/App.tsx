@@ -153,16 +153,19 @@ function App() {
       sessionId = session.id;
     }
 
+    const now = Date.now();
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
+      timestamp: now,
     };
 
     const assistantMsg: Message = {
       id: crypto.randomUUID(),
       role: "assistant",
       content: "",
+      timestamp: now,
     };
 
     const currentMessages = activeSession?.messages || [];
@@ -236,9 +239,22 @@ function App() {
             updateContent(fullContent);
           }
 
-          // Capture Claude session ID for conversation continuity
-          if (event.type === "result" && event.session_id) {
-            setClaudeSessionId(sessionId!, event.session_id);
+          // Capture Claude session ID and metadata from result event
+          if (event.type === "result") {
+            if (event.session_id) {
+              setClaudeSessionId(sessionId!, event.session_id);
+            }
+            // Update assistant message with cost and duration
+            const costUsd = event.cost_usd ?? event.total_cost_usd;
+            const durationMs = event.duration_ms ?? (Date.now() - now);
+            if (costUsd !== undefined || durationMs !== undefined) {
+              latestMessages = latestMessages.map((m) =>
+                m.id === assistantMsg.id
+                  ? { ...m, costUsd, durationMs }
+                  : m
+              );
+              updateMessages(sessionId!, latestMessages);
+            }
           }
 
           if (event.type === "tool_result") {
@@ -417,8 +433,8 @@ function App() {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
+            className={`flex flex-col ${
+              msg.role === "user" ? "items-end" : "items-start"
             }`}
           >
             <div
@@ -436,6 +452,18 @@ function App() {
                 </div>
               ) : (
                 <MessageContent content={msg.content} role={msg.role} />
+              )}
+            </div>
+            {/* Message metadata */}
+            <div className="flex items-center gap-2 mt-1 px-1 text-[10px] text-[#334155]">
+              {msg.timestamp && (
+                <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              )}
+              {msg.role === "assistant" && msg.durationMs && (
+                <span>{(msg.durationMs / 1000).toFixed(1)}s</span>
+              )}
+              {msg.role === "assistant" && msg.costUsd !== undefined && (
+                <span>${msg.costUsd.toFixed(4)}</span>
               )}
             </div>
           </div>
