@@ -76,26 +76,6 @@ function App() {
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }, []);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setPaletteOpen((o) => !o);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-        e.preventDefault();
-        setSettingsOpen((o) => !o);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
-        e.preventDefault();
-        handleNewChat();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   const insertSkillCommand = useCallback(
     (skillName: string) => {
       setInput(`/${skillName.toLowerCase()} `);
@@ -124,6 +104,30 @@ function App() {
     }
     setIsStreaming(false);
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        handleNewChat();
+      }
+      if (e.key === "Escape" && isStreaming) {
+        e.preventDefault();
+        stopStreaming();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isStreaming, stopStreaming, handleNewChat]);
 
   const sendMessage = async () => {
     const trimmed = input.trim();
@@ -171,25 +175,28 @@ function App() {
       let fullContent = "";
       let latestMessages = newMessages;
 
+      const updateContent = (text: string) => {
+        fullContent = text;
+        latestMessages = latestMessages.map((m) =>
+          m.id === assistantMsg.id ? { ...m, content: fullContent } : m
+        );
+        updateMessages(sessionId!, latestMessages);
+        const algoState = parseAlgorithmState(fullContent);
+        if (algoState.phases.some((p) => p.status !== "pending")) {
+          setAlgoPhases(algoState.phases);
+          setAlgoCriteria(algoState.criteria);
+        }
+      };
+
       command.stdout.on("data", (line: string) => {
         try {
           const event = JSON.parse(line);
 
+          // Full assistant message (cumulative content)
           if (event.type === "assistant" && event.message?.content) {
             for (const block of event.message.content) {
               if (block.type === "text") {
-                fullContent = block.text;
-                latestMessages = latestMessages.map((m) =>
-                  m.id === assistantMsg.id
-                    ? { ...m, content: fullContent }
-                    : m
-                );
-                updateMessages(sessionId!, latestMessages);
-                const algoState = parseAlgorithmState(fullContent);
-                if (algoState.phases.some((p) => p.status !== "pending")) {
-                  setAlgoPhases(algoState.phases);
-                  setAlgoCriteria(algoState.criteria);
-                }
+                updateContent(block.text);
               }
               if (block.type === "tool_use" && block.name === "Agent") {
                 const agentId = block.id || crypto.randomUUID();
@@ -206,6 +213,12 @@ function App() {
                 setDrawerOpen(true);
               }
             }
+          }
+
+          // Incremental text delta
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+            fullContent += event.delta.text;
+            updateContent(fullContent);
           }
 
           // Capture Claude session ID for conversation continuity
@@ -313,6 +326,17 @@ function App() {
         />
         <span className="text-blue-400 font-semibold text-sm ml-3">Claudio</span>
         <span className="ml-2 text-[#475569] text-xs">v0.1</span>
+        {isStreaming && (
+          <span className="ml-2 flex items-center gap-1.5 text-blue-400 text-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            Streaming
+          </span>
+        )}
+        {activeSession?.claudeSessionId && !isStreaming && (
+          <span className="ml-2 text-[#334155] text-[10px]">
+            Session active
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
