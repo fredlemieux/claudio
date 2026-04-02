@@ -5,16 +5,30 @@ import { SkillPalette } from "./components/SkillPalette";
 import { SlashAutocomplete } from "./components/SlashAutocomplete";
 import { AgentDrawer, type AgentInfo } from "./components/AgentDrawer";
 import { AlgorithmTracker, parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "./components/AlgorithmTracker";
+import { SessionSidebar } from "./components/SessionSidebar";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { useSkills, filterSkills } from "./hooks/useSkills";
+import { useSessions } from "./hooks/useSessions";
 import type { Message } from "./types";
 import "highlight.js/styles/github-dark.css";
 import "./App.css";
 
 function App() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const {
+    sessions,
+    activeSession,
+    activeSessionId,
+    createSession,
+    switchSession,
+    updateMessages,
+    deleteSession,
+  } = useSessions();
+
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [algoVisible, setAlgoVisible] = useState(false);
@@ -24,6 +38,8 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { skills } = useSkills();
+
+  const messages = activeSession?.messages || [];
 
   // Slash autocomplete state
   const slashMatch = input.match(/^\/(\S*)$/);
@@ -50,12 +66,20 @@ function App() {
     inputRef.current?.focus();
   }, []);
 
-  // Cmd+K to open palette
+  // Cmd+K to open palette, Cmd+, for settings
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        handleNewChat();
       }
     };
     window.addEventListener("keydown", handler);
@@ -71,9 +95,24 @@ function App() {
     []
   );
 
+  const handleNewChat = useCallback(() => {
+    createSession();
+    setAgents([]);
+    setAlgoPhases([]);
+    setAlgoCriteria([]);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [createSession]);
+
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
+
+    // Auto-create session if none active
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      const session = createSession();
+      sessionId = session.id;
+    }
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -87,7 +126,9 @@ function App() {
       content: "",
     };
 
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    const currentMessages = activeSession?.messages || [];
+    const newMessages = [...currentMessages, userMsg, assistantMsg];
+    updateMessages(sessionId, newMessages);
     setInput("");
     setIsStreaming(true);
 
@@ -108,13 +149,11 @@ function App() {
             for (const block of event.message.content) {
               if (block.type === "text") {
                 fullContent = block.text;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantMsg.id
-                      ? { ...m, content: fullContent }
-                      : m
-                  )
-                );
+                updateMessages(sessionId!, newMessages.map((m) =>
+                  m.id === assistantMsg.id
+                    ? { ...m, content: fullContent }
+                    : m
+                ));
                 // Parse algorithm phases and ISC from streamed content
                 const algoState = parseAlgorithmState(fullContent);
                 if (algoState.phases.some((p) => p.status !== "pending")) {
@@ -174,26 +213,22 @@ function App() {
 
       command.on("error", (error: string) => {
         console.error("claude error:", error);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsg.id
-              ? { ...m, content: `Error: ${error}` }
-              : m
-          )
-        );
+        updateMessages(sessionId!, newMessages.map((m) =>
+          m.id === assistantMsg.id
+            ? { ...m, content: `Error: ${error}` }
+            : m
+        ));
         setIsStreaming(false);
       });
 
       void child;
     } catch (err) {
       console.error("Failed to spawn claude:", err);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMsg.id
-            ? { ...m, content: `Failed to start Claude: ${err}` }
-            : m
-        )
-      );
+      updateMessages(sessionId!, newMessages.map((m) =>
+        m.id === assistantMsg.id
+          ? { ...m, content: `Failed to start Claude: ${err}` }
+          : m
+      ));
       setIsStreaming(false);
     }
   };
@@ -233,34 +268,41 @@ function App() {
     <div className="flex flex-col h-screen bg-[#0a0a14]">
       {/* Title bar */}
       <div className="flex items-center h-12 px-4 bg-[#0e0e1a] border-b border-[#1e1e3a]">
-        <span className="text-blue-400 font-semibold text-sm">Claudio</span>
-        <span className="ml-2 text-[#475569] text-xs">M4</span>
-        <div className="ml-auto flex items-center gap-2">
+        <SessionSidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((o) => !o)}
+          onSelect={(id) => { switchSession(id); setSidebarOpen(false); }}
+          onNew={() => { handleNewChat(); setSidebarOpen(false); }}
+          onDelete={deleteSession}
+        />
+        <span className="text-blue-400 font-semibold text-sm ml-3">Claudio</span>
+        <span className="ml-2 text-[#475569] text-xs">M6</span>
+        <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
             className="flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] text-xs transition-colors"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-3.5 h-3.5"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z"
-                clipRule="evenodd"
-              />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
             </svg>
-            <kbd className="text-[10px] bg-[#0a0a14] px-1.5 py-0.5 rounded border border-[#1e1e3a]">
-              ⌘K
-            </kbd>
+            <kbd className="text-[10px] bg-[#0a0a14] px-1.5 py-0.5 rounded border border-[#1e1e3a]">⌘K</kbd>
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="text-[#475569] hover:text-[#94a3b8] transition-colors"
+            title="Settings (⌘,)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
+            </svg>
           </button>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div className={`flex-1 overflow-y-auto px-4 py-6 space-y-4 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -272,14 +314,14 @@ function App() {
               </p>
               <div className="flex items-center justify-center gap-2 text-[#334155] text-xs">
                 <span>Type</span>
-                <kbd className="bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a] text-[#475569]">
-                  /
-                </kbd>
+                <kbd className="bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a] text-[#475569]">/</kbd>
                 <span>for skills or</span>
-                <kbd className="bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a] text-[#475569]">
-                  ⌘K
-                </kbd>
+                <kbd className="bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a] text-[#475569]">⌘K</kbd>
                 <span>to search</span>
+              </div>
+              <div className="mt-6 flex items-center justify-center gap-3 text-[#334155] text-[10px]">
+                <span>⌘N new chat</span>
+                <span>⌘, settings</span>
               </div>
             </div>
           </div>
@@ -311,8 +353,7 @@ function App() {
       </div>
 
       {/* Input bar */}
-      <div className="relative px-4 pb-4 pt-2">
-        {/* Slash autocomplete dropdown */}
+      <div className={`relative px-4 pb-4 pt-2 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
         <SlashAutocomplete
           skills={slashResults}
           selectedIndex={slashIndex}
@@ -336,12 +377,7 @@ function App() {
             disabled={!input.trim() || isStreaming}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-30 hover:bg-blue-500 transition-colors shrink-0"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
               <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
             </svg>
           </button>
@@ -358,7 +394,7 @@ function App() {
         </div>
       </div>
 
-      {/* Skill Palette (Cmd+K) */}
+      {/* Overlays and panels */}
       <SkillPalette
         skills={skills}
         isOpen={paletteOpen}
@@ -366,7 +402,11 @@ function App() {
         onSelect={(skill) => insertSkillCommand(skill.name)}
       />
 
-      {/* Algorithm Tracker (opt-in, hidden by default) */}
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+
       <AlgorithmTracker
         phases={algoPhases}
         criteria={algoCriteria}
@@ -374,7 +414,6 @@ function App() {
         onToggle={() => setAlgoVisible((v) => !v)}
       />
 
-      {/* Agent Drawer */}
       <AgentDrawer
         agents={agents}
         isOpen={drawerOpen}
