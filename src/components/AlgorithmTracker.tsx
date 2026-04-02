@@ -86,10 +86,18 @@ function CriterionRow({ criterion }: { criterion: ISCriterion }) {
   );
 }
 
+const DEFAULT_PHASES: AlgorithmPhase[] = PHASE_DEFS.map((def, i) => ({
+  id: `phase-${i}`,
+  name: def.name,
+  icon: def.icon,
+  status: "pending" as const,
+}));
+
 export function AlgorithmTracker({ phases, criteria, visible, onToggle }: AlgorithmTrackerProps) {
   const [showCriteria, setShowCriteria] = useState(true);
+  const displayPhases = phases.length > 0 ? phases : DEFAULT_PHASES;
   const completedCount = criteria.filter((c) => c.status === "completed").length;
-  const activePhase = phases.find((p) => p.status === "active");
+  const activePhase = displayPhases.find((p) => p.status === "active");
 
   if (!visible) {
     return (
@@ -133,7 +141,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
       {/* Phase pipeline */}
       <div className="px-3 py-2 border-b border-[#1e1e3a]">
         <div className="flex flex-wrap gap-1">
-          {phases.map((phase) => (
+          {displayPhases.map((phase) => (
             <PhaseStep key={phase.id} phase={phase} />
           ))}
         </div>
