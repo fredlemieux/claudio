@@ -242,18 +242,10 @@ function App() {
       // Small delay to let diagnostic complete before main spawn
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Clear CLAUDECODE env var to prevent "nested session" error when Tauri
-      // dev server was launched from within a Claude Code session. Also clear
-      // CLAUDE_CODE_ENTRYPOINT which can cause similar issues.
-      const spawnEnv: Record<string, string> = {
-        CLAUDECODE: "",
-        CLAUDE_CODE_ENTRYPOINT: "",
-      };
-
-      const command = Command.create("claude", args, {
-        ...(cwd ? { cwd } : {}),
-        env: spawnEnv,
-      });
+      // NOTE: Do NOT pass `env` to SpawnOptions — Tauri may REPLACE the entire
+      // environment rather than merging, which would strip PATH, HOME, etc.
+      // and cause Claude CLI to hang silently.
+      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
 
       let fullContent = "";
       let latestMessages = newMessages;
