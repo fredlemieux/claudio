@@ -205,6 +205,43 @@ function App() {
 
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
 
+      // Diagnostic: test execute() to see if Claude CLI produces ANY output
+      try {
+        addLog("info", "app", "Running diagnostic: claude --version via execute()...");
+        const versionCmd = Command.create("claude", ["--version"]);
+        const versionResult = await versionCmd.execute();
+        addLog("info", "app", `DIAG --version: stdout="${versionResult.stdout.trim()}" stderr="${versionResult.stderr.slice(0, 200)}" code=${versionResult.code}`);
+      } catch (e) {
+        addLog("error", "app", `DIAG --version FAILED: ${e}`);
+      }
+
+      // Diagnostic: test spawn() with --version to see if events fire for simple commands
+      try {
+        addLog("info", "app", "Running diagnostic: claude --version via spawn()...");
+        const spawnTestCmd = Command.create("claude", ["--version"]);
+        let spawnTestGotData = false;
+        spawnTestCmd.stdout.on("data", (line: string) => {
+          spawnTestGotData = true;
+          addLog("info", "app", `DIAG spawn stdout: "${line.trim().slice(0, 100)}"`);
+        });
+        spawnTestCmd.stderr.on("data", (line: string) => {
+          addLog("info", "app", `DIAG spawn stderr: "${line.trim().slice(0, 100)}"`);
+        });
+        spawnTestCmd.on("close", (d) => {
+          addLog("info", "app", `DIAG spawn close: code=${d.code} signal=${d.signal} gotData=${spawnTestGotData}`);
+        });
+        spawnTestCmd.on("error", (err: string) => {
+          addLog("error", "app", `DIAG spawn error: ${err}`);
+        });
+        await spawnTestCmd.spawn();
+        addLog("info", "app", "DIAG spawn started");
+      } catch (e) {
+        addLog("error", "app", `DIAG spawn FAILED: ${e}`);
+      }
+
+      // Small delay to let diagnostic complete before main spawn
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Clear CLAUDECODE env var to prevent "nested session" error when Tauri
       // dev server was launched from within a Claude Code session. Also clear
       // CLAUDE_CODE_ENTRYPOINT which can cause similar issues.

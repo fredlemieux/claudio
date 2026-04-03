@@ -18,7 +18,16 @@
     },
     "shell:allow-stdin-write",
     "shell:allow-kill",
-    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "claude",
+          "cmd": "claude",
+          "args": true
+        }
+      ]
+    },
     "dialog:allow-open"
   ]
 }
