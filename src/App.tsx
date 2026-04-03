@@ -301,40 +301,11 @@ function App() {
         }
       };
 
-      // Line-buffered stdout handler — handles partial JSON chunks from Tauri shell
-      command.stdout.on("data", (chunk: string) => {
-        stdoutBuffer += chunk;
-        const lines = stdoutBuffer.split("\n");
-        // Keep the last element (may be incomplete)
-        stdoutBuffer = lines.pop() || "";
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          try {
-            processJsonLine(trimmedLine);
-          } catch (e) {
-            addLog("warn", "stdout", `Parse error: ${trimmedLine.slice(0, 200)}`);
-          }
-        }
-      });
-
-      command.stderr.on("data", (chunk: string) => {
-        const msg = chunk.trim();
-        if (msg) {
-          stderrAccumulator += (stderrAccumulator ? "\n" : "") + msg;
-          addLog("error", "stderr", msg);
-          // Auto-open debug console on errors
-          setDebugVisible(true);
-        }
-      });
-
-      const child = await command.spawn();
-      childRef.current = child;
-      addLog("info", "process", `Process spawned (PID unknown — Tauri shell)`);
-
+      // Register ALL event handlers BEFORE spawn to avoid race conditions
       command.on("close", (data) => {
-        // Process any remaining buffered data
+        // Flush any remaining buffered partial data
         if (stdoutBuffer.trim()) {
+          addLog("info", "process", `Flushing ${stdoutBuffer.length} chars from buffer`);
           try {
             processJsonLine(stdoutBuffer.trim());
           } catch {
@@ -343,7 +314,7 @@ function App() {
           stdoutBuffer = "";
         }
 
-        addLog("info", "process", `Process exited: code=${data.code}, signal=${data.signal ?? "none"}`);
+        addLog("info", "process", `Process exited: code=${data.code}, signal=${data.signal ?? "none"}, contentLength=${fullContent.length}`);
 
         // If no content was produced and we have stderr, show it as the assistant message
         if (!fullContent && stderrAccumulator) {
@@ -378,6 +349,42 @@ function App() {
         setIsStreaming(false);
         setDebugVisible(true);
       });
+
+      // Tauri shell plugin delivers stdout LINE-BY-LINE (split on \n in Rust layer).
+      // Each data event is a complete line without trailing newline — no buffer needed.
+      command.stdout.on("data", (line: string) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return;
+        addLog("debug", "stdout", `[line ${trimmedLine.length} chars]: ${trimmedLine.slice(0, 200)}`);
+        try {
+          processJsonLine(trimmedLine);
+        } catch (e) {
+          // If parse fails, it might be a partial chunk — buffer it
+          stdoutBuffer += line;
+          // Try parsing the accumulated buffer
+          const bufferTrimmed = stdoutBuffer.trim();
+          try {
+            processJsonLine(bufferTrimmed);
+            stdoutBuffer = "";
+          } catch {
+            addLog("warn", "stdout", `Buffered partial (${stdoutBuffer.length} chars): ${trimmedLine.slice(0, 100)}`);
+          }
+        }
+      });
+
+      command.stderr.on("data", (chunk: string) => {
+        const msg = chunk.trim();
+        if (msg) {
+          stderrAccumulator += (stderrAccumulator ? "\n" : "") + msg;
+          addLog("error", "stderr", msg);
+          // Auto-open debug console on errors
+          setDebugVisible(true);
+        }
+      });
+
+      const child = await command.spawn();
+      childRef.current = child;
+      addLog("info", "process", `Process spawned (PID unknown — Tauri shell)`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       addLog("error", "app", `Failed to spawn claude: ${errMsg}`);
