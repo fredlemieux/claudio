@@ -198,7 +198,7 @@ function App() {
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
-      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--no-input", "--model", settings.model];
+      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", settings.model];
       const args = claudeSessionId
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
