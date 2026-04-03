@@ -198,59 +198,17 @@ function App() {
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
-      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", settings.model, "--verbose"];
+      // Use --output-format json (not stream-json) since we use execute() which collects all output.
+      // Note: spawn() with stream-json doesn't deliver events for long-running processes in Tauri 2.
+      const baseArgs = ["-p", trimmed, "--output-format", "json", "--model", settings.model];
       const args = claudeSessionId
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
 
-      addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
-
-      // Diagnostic: test execute() to see if Claude CLI produces ANY output
-      try {
-        addLog("info", "app", "Running diagnostic: claude --version via execute()...");
-        const versionCmd = Command.create("claude", ["--version"]);
-        const versionResult = await versionCmd.execute();
-        addLog("info", "app", `DIAG --version: stdout="${versionResult.stdout.trim()}" stderr="${versionResult.stderr.slice(0, 200)}" code=${versionResult.code}`);
-      } catch (e) {
-        addLog("error", "app", `DIAG --version FAILED: ${e}`);
-      }
-
-      // Diagnostic: test spawn() with --version to see if events fire for simple commands
-      try {
-        addLog("info", "app", "Running diagnostic: claude --version via spawn()...");
-        const spawnTestCmd = Command.create("claude", ["--version"]);
-        let spawnTestGotData = false;
-        spawnTestCmd.stdout.on("data", (line: string) => {
-          spawnTestGotData = true;
-          addLog("info", "app", `DIAG spawn stdout: "${line.trim().slice(0, 100)}"`);
-        });
-        spawnTestCmd.stderr.on("data", (line: string) => {
-          addLog("info", "app", `DIAG spawn stderr: "${line.trim().slice(0, 100)}"`);
-        });
-        spawnTestCmd.on("close", (d) => {
-          addLog("info", "app", `DIAG spawn close: code=${d.code} signal=${d.signal} gotData=${spawnTestGotData}`);
-        });
-        spawnTestCmd.on("error", (err: string) => {
-          addLog("error", "app", `DIAG spawn error: ${err}`);
-        });
-        await spawnTestCmd.spawn();
-        addLog("info", "app", "DIAG spawn started");
-      } catch (e) {
-        addLog("error", "app", `DIAG spawn FAILED: ${e}`);
-      }
-
-      // Small delay to let diagnostic complete before main spawn
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // NOTE: Do NOT pass `env` to SpawnOptions — Tauri may REPLACE the entire
-      // environment rather than merging, which would strip PATH, HOME, etc.
-      // and cause Claude CLI to hang silently.
-      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
+      addLog("info", "app", `Executing: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
 
       let fullContent = "";
       let latestMessages = newMessages;
-      let stdoutBuffer = ""; // Line buffer for partial JSON chunks
-      let stderrAccumulator = ""; // Collect stderr for error display
 
       const updateContent = (text: string) => {
         fullContent = text;
@@ -265,167 +223,58 @@ function App() {
         }
       };
 
-      const processJsonLine = (jsonLine: string) => {
-        const event = JSON.parse(jsonLine);
-        addLog("debug", "stdout", `event: ${event.type}${event.subtype ? `.${event.subtype}` : ""}`);
+      // Use execute() instead of spawn() — Tauri 2's spawn() event listeners
+      // don't deliver stdout/stderr/close events for long-running processes,
+      // but execute() reliably collects all output and returns it.
+      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
+      const result = await command.execute();
 
-        // Full assistant message (cumulative content)
-        if (event.type === "assistant" && event.message?.content) {
-          for (const block of event.message.content) {
-            if (block.type === "text") {
-              updateContent(block.text);
+      addLog("info", "process", `Process exited: code=${result.code}, stdout=${result.stdout.length} chars, stderr=${result.stderr.length} chars`);
+
+      if (result.stderr) {
+        addLog("error", "stderr", result.stderr.slice(0, 500));
+      }
+
+      if (result.code === 0 && result.stdout) {
+        // Parse the JSON response
+        try {
+          const response = JSON.parse(result.stdout);
+          addLog("debug", "stdout", `Response type: ${response.type}, subtype: ${response.subtype}`);
+
+          // Extract text content from the result
+          if (response.type === "result" && response.result) {
+            updateContent(response.result);
+
+            // Capture session ID and cost
+            if (response.session_id) {
+              setClaudeSessionId(sessionId!, response.session_id);
             }
-            if (block.type === "tool_use") {
-              const toolId = block.id || crypto.randomUUID();
-              const inputStr = block.input
-                ? typeof block.input === "string"
-                  ? block.input.slice(0, 200)
-                  : JSON.stringify(block.input).slice(0, 200)
-                : "";
-              setToolCalls((prev) => {
-                if (prev.some((t) => t.id === toolId)) return prev;
-                return [...prev, {
-                  id: toolId, name: block.name, status: "running" as const,
-                  input: inputStr, startedAt: Date.now(),
-                }];
-              });
-              if (block.name === "Agent") {
-                setAgents((prev) => [...prev, {
-                  id: toolId, name: block.input?.description || "Agent",
-                  type: block.input?.subagent_type || "general-purpose",
-                  status: "running", description: (block.input?.prompt || "").slice(0, 120),
-                  output: "", startedAt: Date.now(),
-                }]);
-                setDrawerOpen(true);
-              }
-            }
-          }
-        }
-
-        // Incremental text delta
-        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-          fullContent += event.delta.text;
-          updateContent(fullContent);
-        }
-
-        // Capture Claude session ID and metadata from result event
-        if (event.type === "result") {
-          addLog("info", "process", `Result: session=${event.session_id || "none"}, cost=$${event.cost_usd ?? event.total_cost_usd ?? "?"}`);
-          if (event.session_id) {
-            setClaudeSessionId(sessionId!, event.session_id);
-          }
-          const costUsd = event.cost_usd ?? event.total_cost_usd;
-          const durationMs = event.duration_ms ?? (Date.now() - now);
-          if (costUsd !== undefined || durationMs !== undefined) {
+            const costUsd = response.cost_usd ?? response.total_cost_usd;
+            const durationMs = response.duration_ms ?? (Date.now() - now);
             latestMessages = latestMessages.map((m) =>
               m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
             );
             updateMessages(sessionId!, latestMessages);
+
+            addLog("info", "process", `Result: session=${response.session_id || "none"}, cost=$${costUsd ?? "?"}, duration=${durationMs}ms`);
+          } else {
+            // Fallback: try to use whatever text is in the response
+            const text = response.result || response.content || result.stdout;
+            updateContent(typeof text === "string" ? text : JSON.stringify(text));
           }
-        }
-
-        if (event.type === "tool_result") {
-          const resultStr = typeof event.content === "string"
-            ? event.content.slice(0, 500)
-            : JSON.stringify(event.content).slice(0, 500);
-          const isError = event.is_error === true;
-          setToolCalls((prev) => prev.map((t) =>
-            t.id === event.tool_use_id
-              ? { ...t, status: isError ? "error" as const : "completed" as const, output: resultStr, completedAt: Date.now() }
-              : t
-          ));
-          setAgents((prev) => prev.map((a) =>
-            a.id === event.tool_use_id
-              ? { ...a, status: "completed" as const, output: resultStr }
-              : a
-          ));
-        }
-      };
-
-      // Register ALL event handlers BEFORE spawn to avoid race conditions
-      command.on("close", (data) => {
-        // Flush any remaining buffered partial data
-        if (stdoutBuffer.trim()) {
-          addLog("info", "process", `Flushing ${stdoutBuffer.length} chars from buffer`);
-          try {
-            processJsonLine(stdoutBuffer.trim());
-          } catch {
-            addLog("warn", "stdout", `Unparsed final buffer: ${stdoutBuffer.trim().slice(0, 200)}`);
-          }
-          stdoutBuffer = "";
-        }
-
-        addLog("info", "process", `Process exited: code=${data.code}, signal=${data.signal ?? "none"}, contentLength=${fullContent.length}`);
-
-        // If no content was produced and we have stderr, show it as the assistant message
-        if (!fullContent && stderrAccumulator) {
-          latestMessages = latestMessages.map((m) =>
-            m.id === assistantMsg.id
-              ? { ...m, content: `**Error from Claude CLI:**\n\n\`\`\`\n${stderrAccumulator}\n\`\`\`` }
-              : m
-          );
-          updateMessages(sessionId!, latestMessages);
-        } else if (!fullContent && data.code !== 0) {
-          latestMessages = latestMessages.map((m) =>
-            m.id === assistantMsg.id
-              ? { ...m, content: `**Process exited with code ${data.code}**\n\nCheck the debug console for details.` }
-              : m
-          );
-          updateMessages(sessionId!, latestMessages);
-        }
-
-        childRef.current = null;
-        setIsStreaming(false);
-      });
-
-      command.on("error", (error: string) => {
-        addLog("error", "process", `Spawn error: ${error}`);
-        latestMessages = latestMessages.map((m) =>
-          m.id === assistantMsg.id
-            ? { ...m, content: `**Failed to start Claude:**\n\n\`\`\`\n${error}\n\`\`\`\n\nCheck that \`claude\` is installed and in your PATH.` }
-            : m
-        );
-        updateMessages(sessionId!, latestMessages);
-        childRef.current = null;
-        setIsStreaming(false);
-        setDebugVisible(true);
-      });
-
-      // Tauri shell plugin delivers stdout LINE-BY-LINE (split on \n in Rust layer).
-      // Each data event is a complete line without trailing newline — no buffer needed.
-      command.stdout.on("data", (line: string) => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) return;
-        addLog("debug", "stdout", `[line ${trimmedLine.length} chars]: ${trimmedLine.slice(0, 200)}`);
-        try {
-          processJsonLine(trimmedLine);
         } catch (e) {
-          // If parse fails, it might be a partial chunk — buffer it
-          stdoutBuffer += line;
-          // Try parsing the accumulated buffer
-          const bufferTrimmed = stdoutBuffer.trim();
-          try {
-            processJsonLine(bufferTrimmed);
-            stdoutBuffer = "";
-          } catch {
-            addLog("warn", "stdout", `Buffered partial (${stdoutBuffer.length} chars): ${trimmedLine.slice(0, 100)}`);
-          }
+          // If it's not valid JSON, treat stdout as plain text
+          addLog("warn", "stdout", `Non-JSON response, using as plain text: ${result.stdout.slice(0, 100)}`);
+          updateContent(result.stdout);
         }
-      });
+      } else if (result.stderr) {
+        updateContent(`**Error from Claude CLI:**\n\n\`\`\`\n${result.stderr}\n\`\`\``);
+        setDebugVisible(true);
+      } else if (result.code !== 0) {
+        updateContent(`**Process exited with code ${result.code}**\n\nCheck the debug console for details.`);
+      }
 
-      command.stderr.on("data", (chunk: string) => {
-        const msg = chunk.trim();
-        if (msg) {
-          stderrAccumulator += (stderrAccumulator ? "\n" : "") + msg;
-          addLog("error", "stderr", msg);
-          // Auto-open debug console on errors
-          setDebugVisible(true);
-        }
-      });
-
-      const child = await command.spawn();
-      childRef.current = child;
-      addLog("info", "process", `Process spawned (PID unknown — Tauri shell)`);
+      setIsStreaming(false);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       addLog("error", "app", `Failed to spawn claude: ${errMsg}`);
