@@ -18,6 +18,7 @@
     },
     "shell:allow-stdin-write",
     "shell:allow-kill",
+    "shell:allow-execute",
     "dialog:allow-open"
   ]
 }

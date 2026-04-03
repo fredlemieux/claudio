@@ -198,13 +198,25 @@ function App() {
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
-      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", settings.model];
+      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", settings.model, "--verbose"];
       const args = claudeSessionId
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
 
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
-      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
+
+      // Clear CLAUDECODE env var to prevent "nested session" error when Tauri
+      // dev server was launched from within a Claude Code session. Also clear
+      // CLAUDE_CODE_ENTRYPOINT which can cause similar issues.
+      const spawnEnv: Record<string, string> = {
+        CLAUDECODE: "",
+        CLAUDE_CODE_ENTRYPOINT: "",
+      };
+
+      const command = Command.create("claude", args, {
+        ...(cwd ? { cwd } : {}),
+        env: spawnEnv,
+      });
 
       let fullContent = "";
       let latestMessages = newMessages;
