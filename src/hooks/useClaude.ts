@@ -221,7 +221,7 @@ export function useClaude({
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
-      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", model];
+      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--verbose", "--model", model];
       const args = claudeSessionId
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
@@ -229,45 +229,162 @@ export function useClaude({
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
       addLog("debug", "app", `Session lookup: sessionId=${sessionId}, claudeSessionId=${claudeSessionId ?? "none"}, cwd=${cwd ?? "none"}`);
 
-      // Strip CLAUDECODE env var to prevent "nested session" detection.
-      // Tauri inherits parent env — if dev server launched from Claude Code terminal,
-      // CLAUDECODE=1 propagates and can cause the child to hang or refuse to start.
+      // Use encoding: 'raw' to bypass Tauri Issue #1632 — spawn() buffers stdout
+      // until a newline is encountered, which breaks streaming for long-running processes.
+      // With raw encoding, we get Uint8Array chunks and handle decoding ourselves.
+      // NOTE: Do NOT set `env` — Tauri replaces the entire environment instead of merging,
+      // which strips PATH, HOME, etc. and causes claude to hang silently.
       const spawnOpts: Record<string, unknown> = {
         ...(cwd ? { cwd } : {}),
-        env: { CLAUDECODE: "" },
+        encoding: "raw",
       };
       addLog("debug", "app", `Spawn options: ${JSON.stringify(spawnOpts)}`);
 
-      const command = Command.create("claude", args, spawnOpts);
-      addLog("debug", "app", `Command created, wiring event handlers...`);
+      // --- Diagnostics: incremental test battery ---
+      // Tests progressively from simplest to most complex to find exactly where it breaks.
+      // Each test logs results to debug console. All use execute() (proven working for quick cmds)
+      // except the bash spawn test which validates Tauri's streaming delivery.
 
-      let stdoutLineCount = 0;
+      const diagTests = [
+        { name: "claude --version", args: ["--version"] },
+        { name: "claude --help (length)", args: ["--help"] },
+        { name: "claude -p 'hi' (no flags)", args: ["-p", "hi", "--model", "haiku"] },
+        { name: "claude -p 'hi' --output-format json", args: ["-p", "hi", "--output-format", "json", "--model", "haiku"] },
+        { name: "claude -p 'hi' --output-format stream-json --verbose", args: ["-p", "hi", "--output-format", "stream-json", "--verbose", "--model", "haiku"] },
+      ];
+
+      // Run execute() tests sequentially (each waits for result)
+      for (let i = 0; i < diagTests.length; i++) {
+        const test = diagTests[i];
+        try {
+          addLog("info", "diag", `[${i + 1}/${diagTests.length}] execute() ${test.name}`);
+          const cmd = Command.create("claude", test.args);
+          const out = await cmd.execute();
+          const summary = out.stdout.length > 200
+            ? `${out.stdout.length} chars, first 100: "${out.stdout.slice(0, 100)}"`
+            : `"${out.stdout.trim()}"`;
+          addLog("info", "diag", `[${i + 1}/${diagTests.length}] ${out.code === 0 ? "✅" : "❌"} exit=${out.code}, stdout=${summary}, stderr=${out.stderr.length > 0 ? `"${out.stderr.slice(0, 200)}"` : "empty"}`);
+        } catch (err) {
+          addLog("error", "diag", `[${i + 1}/${diagTests.length}] ❌ FAILED: ${err}`);
+        }
+      }
+
+      // Spawn test: bash with timed echo — validates Tauri spawn() + raw encoding delivers stdout
+      try {
+        addLog("info", "diag", `[SPAWN] bash timed echo (encoding=raw) — Tauri streaming test`);
+        const bashCmd = Command.create("bash", ["-c", "echo DIAG_IMMEDIATE && sleep 2 && echo DIAG_AFTER_2S"], { encoding: "raw" });
+        let bashChunks = 0;
+        const bashDecoder = new TextDecoder();
+        bashCmd.stdout.on("data", (raw: Uint8Array | string) => {
+          bashChunks++;
+          const text = typeof raw === "string" ? raw : bashDecoder.decode(new Uint8Array(raw), { stream: true });
+          addLog("info", "diag", `[SPAWN] 🔶 bash chunk #${bashChunks}: "${text.trim()}"`);
+        });
+        bashCmd.stderr.on("data", (raw: Uint8Array | string) => {
+          const text = typeof raw === "string" ? raw : bashDecoder.decode(new Uint8Array(raw), { stream: true });
+          addLog("warn", "diag", `[SPAWN] bash stderr: ${text}`);
+        });
+        bashCmd.on("close", (p) => {
+          addLog("info", "diag", `[SPAWN] bash CLOSED: code=${p.code}, chunks=${bashChunks}`);
+        });
+        const bashChild = await bashCmd.spawn();
+        addLog("info", "diag", `[SPAWN] bash pid=${bashChild.pid}`);
+      } catch (diagErr) {
+        addLog("error", "diag", `[SPAWN] ❌ bash FAILED: ${diagErr}`);
+      }
+
+      // Spawn test: simplest claude -p via bash wrapper (stdin from /dev/null + unsets env)
+      try {
+        addLog("info", "diag", `[SPAWN] claude -p via bash wrapper (stdin=/dev/null, unsets CLAUDECODE)`);
+        const wrapCmd = Command.create("bash", [
+          "-c", "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude -p hi --model haiku < /dev/null",
+        ], { encoding: "raw" });
+        let wrapChunks = 0;
+        const wrapDecoder = new TextDecoder();
+        wrapCmd.stdout.on("data", (raw: Uint8Array | string) => {
+          wrapChunks++;
+          const text = typeof raw === "string" ? raw : wrapDecoder.decode(new Uint8Array(raw), { stream: true });
+          addLog("info", "diag", `[SPAWN] 🔶 wrapped claude chunk #${wrapChunks} (${text.length} chars): "${text.slice(0, 150)}"`);
+        });
+        wrapCmd.stderr.on("data", (raw: Uint8Array | string) => {
+          const text = typeof raw === "string" ? raw : wrapDecoder.decode(new Uint8Array(raw), { stream: true });
+          addLog("warn", "diag", `[SPAWN] wrapped claude stderr: ${text}`);
+        });
+        wrapCmd.on("close", (p) => {
+          addLog("info", "diag", `[SPAWN] wrapped claude CLOSED: code=${p.code}, signal=${p.signal ?? "none"}, chunks=${wrapChunks}`);
+        });
+        const wrapChild = await wrapCmd.spawn();
+        addLog("info", "diag", `[SPAWN] wrapped claude pid=${wrapChild.pid}`);
+      } catch (diagErr) {
+        addLog("error", "diag", `[SPAWN] ❌ wrapped claude FAILED: ${diagErr}`);
+      }
+
+      // --- End diagnostics, proceed with main spawn ---
+      // ROOT CAUSE FIX: Tauri spawn() keeps stdin piped open with no JS-side close API
+      // (Tauri Issue #2136). Claude -p waits for stdin EOF before processing (Claude
+      // Issue #34455). Without EOF, it hangs forever producing zero output.
+      //
+      // Fix: Wrap via bash with `< /dev/null` to give claude immediate stdin EOF.
+      // Also unset CLAUDECODE env vars to prevent nested session detection.
+      // The '--' after the script separates bash args from positional params ($@).
+      const bashScript = 'unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude "$@" < /dev/null';
+      const bashArgs = ["-c", bashScript, "--", ...args];
+      addLog("info", "app", `Wrapping via bash (stdin=/dev/null): bash -c '...' -- ${args.join(" ")}`);
+      const command = Command.create("bash", bashArgs, spawnOpts);
+      addLog("debug", "app", `Command created (bash wrapper, encoding=raw), wiring event handlers...`);
+
+      let stdoutChunkCount = 0;
       let stderrLineCount = 0;
+      const decoder = new TextDecoder();
+      let lineBuffer = ""; // accumulate partial lines from raw chunks
 
       // Wire up event handlers before spawn
-      command.stdout.on("data", (line: string) => {
-        stdoutLineCount++;
-        addLog("debug", "stdout", `[line ${stdoutLineCount}] raw (${line.length} chars): ${line.slice(0, 300)}`);
-        if (!line.trim()) {
-          addLog("debug", "stdout", `[line ${stdoutLineCount}] skipped (empty/whitespace)`);
-          return;
-        }
-        try {
-          const event: StreamEvent = JSON.parse(line);
-          addLog("debug", "stdout", `[line ${stdoutLineCount}] parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
-          handleStreamEvent(event);
-        } catch (parseErr) {
-          addLog("warn", "stdout", `[line ${stdoutLineCount}] JSON parse FAILED: ${parseErr}. Raw: ${line.slice(0, 300)}`);
+      // With encoding: 'raw', data arrives as Uint8Array — decode and split on newlines
+      command.stdout.on("data", (rawData: Uint8Array | string) => {
+        stdoutChunkCount++;
+        const chunk = typeof rawData === "string" ? rawData : decoder.decode(new Uint8Array(rawData), { stream: true });
+        addLog("debug", "stdout", `[chunk ${stdoutChunkCount}] raw ${typeof rawData === "string" ? "string" : "bytes"}(${typeof rawData === "string" ? rawData.length : rawData.length}) decoded(${chunk.length} chars): ${chunk.slice(0, 200)}`);
+
+        lineBuffer += chunk;
+        const lines = lineBuffer.split("\n");
+        // Last element is either empty (if chunk ended with \n) or a partial line
+        lineBuffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const event: StreamEvent = JSON.parse(trimmed);
+            addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
+            handleStreamEvent(event);
+          } catch (parseErr) {
+            addLog("warn", "stdout", `JSON parse FAILED: ${parseErr}. Raw: ${trimmed.slice(0, 300)}`);
+          }
         }
       });
 
-      command.stderr.on("data", (line: string) => {
+      // With encoding: 'raw', stderr also arrives as Uint8Array
+      const stderrDecoder = new TextDecoder();
+      command.stderr.on("data", (rawData: Uint8Array | string) => {
         stderrLineCount++;
-        addLog("error", "stderr", `[line ${stderrLineCount}] ${line}`);
+        const text = typeof rawData === "string" ? rawData : stderrDecoder.decode(new Uint8Array(rawData), { stream: true });
+        addLog("error", "stderr", `[line ${stderrLineCount}] ${text}`);
       });
 
       command.on("close", (payload) => {
-        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutLines=${stdoutLineCount}, stderrLines=${stderrLineCount}, contentBuffer=${contentBuffer.length} chars`);
+        // Flush any remaining data in the line buffer
+        if (lineBuffer.trim()) {
+          addLog("debug", "stdout", `Flushing remaining lineBuffer (${lineBuffer.length} chars): ${lineBuffer.slice(0, 200)}`);
+          try {
+            const event: StreamEvent = JSON.parse(lineBuffer.trim());
+            handleStreamEvent(event);
+          } catch {
+            addLog("warn", "stdout", `Final lineBuffer not valid JSON: ${lineBuffer.slice(0, 200)}`);
+          }
+          lineBuffer = "";
+        }
+
+        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutChunks=${stdoutChunkCount}, stderrLines=${stderrLineCount}, contentBuffer=${contentBuffer.length} chars`);
         childRef.current = null;
 
         // If non-zero exit without a result event, show error
@@ -298,13 +415,13 @@ export function useClaude({
       addLog("info", "app", `Spawn succeeded, child pid=${child.pid}`);
       childRef.current = child;
 
-      // Timeout warning — if no stdout events after 5s, something is wrong
+      // Timeout warning — Claude API can take 10-30s for cold start
       setTimeout(() => {
-        if (stdoutLineCount === 0 && childRef.current) {
-          addLog("warn", "app", `⚠️ No stdout events received after 5s! pid=${child.pid}, stderrLines=${stderrLineCount}. Process may be hung (CLAUDECODE env? auth prompt? API timeout?)`);
+        if (stdoutChunkCount === 0 && childRef.current) {
+          addLog("warn", "app", `⚠️ No stdout chunks received after 15s! pid=${child.pid}, stderrLines=${stderrLineCount}. Process may be hung.`);
           setDebugVisible(true);
         }
-      }, 5000);
+      }, 15000);
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);

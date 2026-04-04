@@ -13,6 +13,11 @@
           "name": "claude",
           "cmd": "claude",
           "args": true
+        },
+        {
+          "name": "bash",
+          "cmd": "bash",
+          "args": true
         }
       ]
     },
@@ -24,6 +29,11 @@
         {
           "name": "claude",
           "cmd": "claude",
+          "args": true
+        },
+        {
+          "name": "bash",
+          "cmd": "bash",
           "args": true
         }
       ]
