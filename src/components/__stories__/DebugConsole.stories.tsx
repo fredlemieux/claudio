@@ -6,7 +6,7 @@ const meta: Meta<typeof DebugConsole> = {
   component: DebugConsole,
   decorators: [
     (Story) => (
-      <div style={{ position: "relative", minHeight: 400, background: "#0a0a14" }}>
+      <div style={{ position: "relative", minHeight: 400, background: "var(--color-base)" }}>
         <Story />
       </div>
     ),

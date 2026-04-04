@@ -7,7 +7,7 @@ const meta: Meta<typeof SettingsPanel> = {
   component: SettingsPanel,
   decorators: [
     (Story) => (
-      <div style={{ height: "100vh", background: "#0a0a14" }}>
+      <div style={{ height: "100vh", background: "var(--color-base)" }}>
         <Story />
       </div>
     ),

@@ -63,13 +63,13 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-[480px] bg-[#12121e] border border-[#1e1e3a] rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-[480px] bg-surface-2 border border-border rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e1e3a]">
-          <h2 className="text-sm font-semibold text-[#e2e8f0]">Settings</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-text-primary">Settings</h2>
           <button
             onClick={onClose}
-            className="text-[#475569] hover:text-[#94a3b8] transition-colors"
+            className="text-text-secondary hover:text-text-interactive transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
@@ -81,24 +81,24 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         <div className="p-5 space-y-6 max-h-[60vh] overflow-y-auto">
           {/* Identity */}
           <div>
-            <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Identity</h3>
+            <h3 className="text-xs font-semibold text-text-interactive uppercase tracking-wider mb-3">Identity</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[#475569] mb-1 block">Your name</label>
+                <label className="text-xs text-text-secondary mb-1 block">Your name</label>
                 <input
                   type="text"
                   value={settings.userName}
                   onChange={(e) => updateSettings({ userName: e.target.value })}
-                  className="w-full bg-[#0a0a14] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-[#e2e8f0] outline-none focus:border-blue-500/50"
+                  className="w-full bg-base border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-blue-500/50"
                 />
               </div>
               <div>
-                <label className="text-xs text-[#475569] mb-1 block">Assistant name</label>
+                <label className="text-xs text-text-secondary mb-1 block">Assistant name</label>
                 <input
                   type="text"
                   value={settings.assistantName}
                   onChange={(e) => updateSettings({ assistantName: e.target.value })}
-                  className="w-full bg-[#0a0a14] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-[#e2e8f0] outline-none focus:border-blue-500/50"
+                  className="w-full bg-base border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-blue-500/50"
                 />
               </div>
             </div>
@@ -106,7 +106,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
           {/* Model */}
           <div>
-            <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Model</h3>
+            <h3 className="text-xs font-semibold text-text-interactive uppercase tracking-wider mb-3">Model</h3>
             <div className="flex gap-2">
               {(["opus", "sonnet", "haiku"] as const).map((model) => (
                 <button
@@ -115,21 +115,21 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                     settings.model === model
                       ? "bg-blue-600 text-white"
-                      : "bg-[#0a0a14] text-[#475569] border border-[#1e1e3a] hover:text-[#94a3b8]"
+                      : "bg-base text-text-secondary border border-border hover:text-text-interactive"
                   }`}
                 >
                   {model.charAt(0).toUpperCase() + model.slice(1)}
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-[#334155] mt-1.5">
+            <p className="text-[10px] text-text-tertiary mt-1.5">
               Model used for Claude Code sessions
             </p>
           </div>
 
           {/* Display */}
           <div>
-            <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Display</h3>
+            <h3 className="text-xs font-semibold text-text-interactive uppercase tracking-wider mb-3">Display</h3>
             <div className="space-y-3">
               <Toggle
                 label="Show Algorithm tracker"
@@ -154,7 +154,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
           {/* Audio */}
           <div>
-            <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">Audio</h3>
+            <h3 className="text-xs font-semibold text-text-interactive uppercase tracking-wider mb-3">Audio</h3>
             <Toggle
               label="Voice notifications"
               description="Play voice announcements for phase changes"
@@ -165,8 +165,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[#1e1e3a] flex items-center justify-between">
-          <span className="text-[10px] text-[#334155]">Claudio v0.1.0</span>
+        <div className="px-5 py-3 border-t border-border flex items-center justify-between">
+          <span className="text-[10px] text-text-tertiary">Claudio v0.1.0</span>
           <button
             onClick={onClose}
             className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors"
@@ -193,13 +193,13 @@ function Toggle({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm text-[#e2e8f0]">{label}</p>
-        <p className="text-[10px] text-[#475569]">{description}</p>
+        <p className="text-sm text-text-primary">{label}</p>
+        <p className="text-[10px] text-text-secondary">{description}</p>
       </div>
       <button
         onClick={() => onChange(!checked)}
         className={`w-9 h-5 rounded-full transition-colors relative ${
-          checked ? "bg-blue-600" : "bg-[#1e1e3a]"
+          checked ? "bg-blue-600" : "bg-border"
         }`}
       >
         <span

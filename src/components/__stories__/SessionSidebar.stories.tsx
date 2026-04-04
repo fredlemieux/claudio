@@ -8,7 +8,7 @@ const meta: Meta<typeof SessionSidebar> = {
   component: SessionSidebar,
   decorators: [
     (Story) => (
-      <div style={{ height: "100vh", background: "#0a0a14", position: "relative" }}>
+      <div style={{ height: "100vh", background: "var(--color-base)", position: "relative" }}>
         <Story />
       </div>
     ),

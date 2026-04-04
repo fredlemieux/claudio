@@ -73,7 +73,7 @@ function App() {
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a14]">
+    <div className="flex flex-col h-screen bg-base">
       <TitleBar
         sessions={sessions}
         activeSessionId={activeSessionId}

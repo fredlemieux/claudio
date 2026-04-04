@@ -36,10 +36,10 @@ function ToolCallRow({ tool }: { tool: ToolCall }) {
   const icon = TOOL_ICONS[tool.name] || TOOL_ICONS.default;
 
   return (
-    <div className="border-l-2 border-[#1e1e3a] pl-2 py-0.5">
+    <div className="border-l-2 border-border pl-2 py-0.5">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[11px] text-[#475569] hover:text-[#94a3b8] transition-colors w-full text-left"
+        className="flex items-center gap-1.5 text-[11px] text-text-secondary hover:text-text-interactive transition-colors w-full text-left"
       >
         <span className="text-xs">{icon}</span>
         <span className="font-mono">{tool.name}</span>
@@ -52,7 +52,7 @@ function ToolCallRow({ tool }: { tool: ToolCall }) {
         {tool.status === "error" && (
           <span className="text-red-400 text-[10px]">✗</span>
         )}
-        <span className="text-[10px] text-[#334155] ml-auto">
+        <span className="text-[10px] text-text-tertiary ml-auto">
           {formatDuration(tool.startedAt, tool.completedAt)}
         </span>
         <svg
@@ -67,12 +67,12 @@ function ToolCallRow({ tool }: { tool: ToolCall }) {
       {expanded && (
         <div className="mt-1 space-y-1">
           {tool.input && (
-            <pre className="text-[10px] text-[#475569] bg-[#0a0a14] rounded p-2 overflow-x-auto max-h-[100px] overflow-y-auto">
+            <pre className="text-[10px] text-text-secondary bg-base rounded p-2 overflow-x-auto max-h-[100px] overflow-y-auto">
               {tool.input}
             </pre>
           )}
           {tool.output && (
-            <pre className="text-[10px] text-[#94a3b8] bg-[#0a0a14] rounded p-2 overflow-x-auto max-h-[100px] overflow-y-auto">
+            <pre className="text-[10px] text-text-interactive bg-base rounded p-2 overflow-x-auto max-h-[100px] overflow-y-auto">
               {tool.output}
             </pre>
           )}
@@ -94,10 +94,10 @@ export function ToolUseIndicator({ tools }: ToolUseIndicatorProps) {
   const completed = tools.filter((t) => t.status === "completed").length;
 
   return (
-    <div className="my-1 bg-[#12121e] rounded-lg border border-[#1e1e3a] overflow-hidden">
+    <div className="my-1 bg-surface-2 rounded-lg border border-border overflow-hidden">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-[#475569] hover:text-[#94a3b8] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-text-secondary hover:text-text-interactive transition-colors"
       >
         <span>🔧</span>
         <span>

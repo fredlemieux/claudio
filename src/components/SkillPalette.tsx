@@ -73,14 +73,14 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       {/* Palette */}
-      <div className="relative w-[560px] max-h-[420px] bg-[#12121e] border border-[#1e1e3a] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-[560px] max-h-[420px] bg-surface-2 border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1e1e3a]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
-            className="w-4 h-4 text-[#475569] shrink-0"
+            className="w-4 h-4 text-text-secondary shrink-0"
           >
             <path
               fillRule="evenodd"
@@ -95,9 +95,9 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search skills..."
-            className="flex-1 bg-transparent text-[#e2e8f0] text-sm outline-none placeholder-[#475569]"
+            className="flex-1 bg-transparent text-text-primary text-sm outline-none placeholder-text-secondary"
           />
-          <kbd className="text-[10px] text-[#475569] bg-[#0a0a14] px-1.5 py-0.5 rounded border border-[#1e1e3a]">
+          <kbd className="text-[10px] text-text-secondary bg-base px-1.5 py-0.5 rounded border border-border">
             ESC
           </kbd>
         </div>
@@ -105,7 +105,7 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
         {/* Skill list */}
         <div ref={listRef} className="overflow-y-auto flex-1 py-1">
           {filtered.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[#475569] text-sm">
+            <div className="px-4 py-8 text-center text-text-secondary text-sm">
               No skills found
             </div>
           ) : (
@@ -115,8 +115,8 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
                 onClick={() => onSelect(skill)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                   i === selectedIndex
-                    ? "bg-blue-600/20 text-[#e2e8f0]"
-                    : "text-[#94a3b8] hover:bg-[#1a1a2e]"
+                    ? "bg-blue-600/20 text-text-primary"
+                    : "text-text-interactive hover:bg-surface-hover"
                 }`}
               >
                 <span className="text-blue-400 font-mono text-xs shrink-0">
@@ -136,7 +136,7 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
         </div>
 
         {/* Footer hint */}
-        <div className="px-4 py-2 border-t border-[#1e1e3a] flex items-center gap-4 text-[10px] text-[#475569]">
+        <div className="px-4 py-2 border-t border-border flex items-center gap-4 text-[10px] text-text-secondary">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>

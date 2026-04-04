@@ -7,7 +7,7 @@ const meta: Meta<typeof AgentDrawer> = {
   component: AgentDrawer,
   decorators: [
     (Story) => (
-      <div style={{ height: "100vh", background: "#0a0a14", position: "relative" }}>
+      <div style={{ height: "100vh", background: "var(--color-base)", position: "relative" }}>
         <Story />
       </div>
     ),

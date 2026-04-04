@@ -8,7 +8,7 @@ const meta: Meta<typeof TitleBar> = {
   component: TitleBar,
   decorators: [
     (Story) => (
-      <div style={{ background: "#0a0a14" }}>
+      <div style={{ background: "var(--color-base)" }}>
         <Story />
       </div>
     ),

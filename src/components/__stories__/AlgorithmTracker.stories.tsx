@@ -6,7 +6,7 @@ const meta: Meta<typeof AlgorithmTracker> = {
   component: AlgorithmTracker,
   decorators: [
     (Story) => (
-      <div style={{ position: "relative", minHeight: 500, background: "#0a0a14" }}>
+      <div style={{ position: "relative", minHeight: 500, background: "var(--color-base)" }}>
         <Story />
       </div>
     ),

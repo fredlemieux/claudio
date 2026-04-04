@@ -8,7 +8,7 @@ const meta: Meta<typeof SlashAutocomplete> = {
   component: SlashAutocomplete,
   decorators: [
     (Story) => (
-      <div style={{ position: "relative", height: 300, background: "#0a0a14", padding: 20 }}>
+      <div style={{ position: "relative", height: 300, background: "var(--color-base)", padding: 20 }}>
         <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
           <Story />
         </div>

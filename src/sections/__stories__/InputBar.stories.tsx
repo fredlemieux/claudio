@@ -9,7 +9,7 @@ const meta: Meta<typeof InputBar> = {
   component: InputBar,
   decorators: [
     (Story) => (
-      <div style={{ background: "#0a0a14", paddingTop: 300 }}>
+      <div style={{ background: "var(--color-base)", paddingTop: 300 }}>
         <Story />
       </div>
     ),

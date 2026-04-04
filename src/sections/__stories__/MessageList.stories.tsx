@@ -7,7 +7,7 @@ const meta: Meta<typeof MessageList> = {
   component: MessageList,
   decorators: [
     (Story) => (
-      <div style={{ height: "80vh", background: "#0a0a14", display: "flex", flexDirection: "column" }}>
+      <div style={{ height: "80vh", background: "var(--color-base)", display: "flex", flexDirection: "column" }}>
         <Story />
       </div>
     ),

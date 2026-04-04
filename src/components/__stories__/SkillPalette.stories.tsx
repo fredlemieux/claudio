@@ -8,7 +8,7 @@ const meta: Meta<typeof SkillPalette> = {
   component: SkillPalette,
   decorators: [
     (Story) => (
-      <div style={{ height: "100vh", background: "#0a0a14" }}>
+      <div style={{ height: "100vh", background: "var(--color-base)" }}>
         <Story />
       </div>
     ),

@@ -16,10 +16,10 @@ interface DebugConsoleProps {
 }
 
 const LEVEL_COLORS = {
-  info: "text-[#94a3b8]",
+  info: "text-text-interactive",
   warn: "text-yellow-400",
   error: "text-red-400",
-  debug: "text-[#475569]",
+  debug: "text-text-secondary",
 };
 
 const SOURCE_COLORS = {
@@ -63,7 +63,7 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
         className={`fixed right-4 bottom-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
           errorCount > 0
             ? "bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30"
-            : "bg-[#12121e] text-[#475569] border border-[#1e1e3a] hover:text-[#94a3b8]"
+            : "bg-surface-2 text-text-secondary border border-border hover:text-text-interactive"
         }`}
         title="Toggle debug console"
       >
@@ -81,12 +81,12 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a14] border-t border-[#1e1e3a] shadow-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-base border-t border-border shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0e0e1a] border-b border-[#1e1e3a]">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 border-b border-border">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-[#e2e8f0]">Debug Console</span>
-          <span className="text-[10px] text-[#475569]">{logs.length} entries</span>
+          <span className="text-xs font-semibold text-text-primary">Debug Console</span>
+          <span className="text-[10px] text-text-secondary">{logs.length} entries</span>
           {errorCount > 0 && (
             <span className="text-[10px] text-red-400">{errorCount} errors</span>
           )}
@@ -100,7 +100,7 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
               className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
                 filter === f
                   ? "bg-blue-600/20 text-blue-400"
-                  : "text-[#475569] hover:text-[#94a3b8]"
+                  : "text-text-secondary hover:text-text-interactive"
               }`}
             >
               {f}
@@ -109,7 +109,7 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
           <button
             onClick={() => setAutoScroll(!autoScroll)}
             className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              autoScroll ? "bg-green-600/20 text-green-400" : "text-[#475569]"
+              autoScroll ? "bg-green-600/20 text-green-400" : "text-text-secondary"
             }`}
             title="Auto-scroll"
           >
@@ -117,13 +117,13 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
           </button>
           <button
             onClick={onClear}
-            className="text-[10px] text-[#475569] hover:text-[#94a3b8] transition-colors"
+            className="text-[10px] text-text-secondary hover:text-text-interactive transition-colors"
           >
             clear
           </button>
           <button
             onClick={onToggle}
-            className="text-[#475569] hover:text-[#94a3b8] transition-colors"
+            className="text-text-secondary hover:text-text-interactive transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
               <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
@@ -144,18 +144,18 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
         }}
       >
         {filteredLogs.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-[#334155] text-xs">
+          <div className="flex items-center justify-center h-full text-text-tertiary text-xs">
             No log entries{filter !== "all" ? ` matching "${filter}"` : ""}
           </div>
         ) : (
           filteredLogs.map((entry) => (
             <div
               key={entry.id}
-              className={`flex gap-2 px-3 py-0.5 hover:bg-[#12121e] ${
+              className={`flex gap-2 px-3 py-0.5 hover:bg-surface-2 ${
                 entry.level === "error" ? "bg-red-600/5" : ""
               }`}
             >
-              <span className="text-[#334155] shrink-0">{formatTime(entry.timestamp)}</span>
+              <span className="text-text-tertiary shrink-0">{formatTime(entry.timestamp)}</span>
               <span className={`shrink-0 w-12 ${SOURCE_COLORS[entry.source]}`}>{entry.source}</span>
               <span className={`shrink-0 w-10 ${LEVEL_COLORS[entry.level]}`}>[{entry.level}]</span>
               <span className={`break-all ${LEVEL_COLORS[entry.level]}`}>{entry.message}</span>

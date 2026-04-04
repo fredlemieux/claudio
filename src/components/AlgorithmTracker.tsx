@@ -35,7 +35,7 @@ const PHASE_DEFS = [
 
 function PhaseStep({ phase }: { phase: AlgorithmPhase }) {
   const colors = {
-    pending: "border-[#1e1e3a] text-[#334155]",
+    pending: "border-border text-text-tertiary",
     active: "border-blue-500 text-blue-400 bg-blue-500/10",
     completed: "border-green-500/50 text-green-400",
   };
@@ -58,7 +58,7 @@ function PhaseStep({ phase }: { phase: AlgorithmPhase }) {
 
 function CriterionRow({ criterion }: { criterion: ISCriterion }) {
   const statusIcons = {
-    pending: <span className="w-3 h-3 rounded border border-[#1e1e3a] inline-block" />,
+    pending: <span className="w-3 h-3 rounded border border-border inline-block" />,
     in_progress: <span className="w-3 h-3 rounded border border-blue-500 bg-blue-500/20 inline-block animate-pulse" />,
     completed: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400">
@@ -76,9 +76,9 @@ function CriterionRow({ criterion }: { criterion: ISCriterion }) {
     <div className="flex items-start gap-2 py-1">
       <div className="mt-0.5 shrink-0">{statusIcons[criterion.status]}</div>
       <span className={`text-[11px] leading-relaxed ${
-        criterion.status === "completed" ? "text-[#475569] line-through" :
+        criterion.status === "completed" ? "text-text-secondary line-through" :
         criterion.status === "failed" ? "text-red-300" :
-        "text-[#94a3b8]"
+        "text-text-interactive"
       }`}>
         {criterion.description}
       </span>
@@ -103,7 +103,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
     return (
       <button
         onClick={onToggle}
-        className="fixed left-4 bottom-20 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-[#12121e] text-[#475569] border border-[#1e1e3a] hover:text-[#94a3b8] transition-colors"
+        className="fixed left-4 bottom-20 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-surface-2 text-text-secondary border border-border hover:text-text-interactive transition-colors"
         title="Show Algorithm progress"
       >
         <span>♻️</span>
@@ -116,21 +116,21 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
   }
 
   return (
-    <div className="fixed left-4 bottom-20 z-40 w-[300px] bg-[#0e0e1a] border border-[#1e1e3a] rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed left-4 bottom-20 z-40 w-[300px] bg-surface-1 border border-border rounded-xl shadow-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e1e3a]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-xs">♻️</span>
-          <span className="text-xs font-semibold text-[#e2e8f0]">Algorithm</span>
+          <span className="text-xs font-semibold text-text-primary">Algorithm</span>
           {criteria.length > 0 && (
-            <span className="text-[10px] text-[#475569]">
+            <span className="text-[10px] text-text-secondary">
               {completedCount}/{criteria.length} ISC
             </span>
           )}
         </div>
         <button
           onClick={onToggle}
-          className="text-[#475569] hover:text-[#94a3b8] transition-colors"
+          className="text-text-secondary hover:text-text-interactive transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
@@ -139,7 +139,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
       </div>
 
       {/* Phase pipeline */}
-      <div className="px-3 py-2 border-b border-[#1e1e3a]">
+      <div className="px-3 py-2 border-b border-border">
         <div className="flex flex-wrap gap-1">
           {displayPhases.map((phase) => (
             <PhaseStep key={phase.id} phase={phase} />
@@ -152,7 +152,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
         <div>
           <button
             onClick={() => setShowCriteria(!showCriteria)}
-            className="w-full flex items-center justify-between px-3 py-2 text-[10px] text-[#475569] hover:text-[#94a3b8] transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 text-[10px] text-text-secondary hover:text-text-interactive transition-colors"
           >
             <span>Ideal State Criteria ({criteria.length})</span>
             <svg
@@ -177,7 +177,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
       {/* Progress bar */}
       {criteria.length > 0 && (
         <div className="px-3 pb-2">
-          <div className="h-1 bg-[#1e1e3a] rounded-full overflow-hidden">
+          <div className="h-1 bg-border rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
               style={{ width: `${(completedCount / criteria.length) * 100}%` }}

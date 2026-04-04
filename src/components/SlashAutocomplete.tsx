@@ -31,7 +31,7 @@ export function SlashAutocomplete({
     <div className="absolute bottom-full left-0 right-0 mb-2 mx-4">
       <div
         ref={listRef}
-        className="bg-[#12121e] border border-[#1e1e3a] rounded-xl shadow-2xl overflow-hidden max-h-[240px] overflow-y-auto py-1"
+        className="bg-surface-2 border border-border rounded-xl shadow-2xl overflow-hidden max-h-[240px] overflow-y-auto py-1"
       >
         {skills.map((skill, i) => (
           <button
@@ -39,8 +39,8 @@ export function SlashAutocomplete({
             onClick={() => onSelect(skill)}
             className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
               i === selectedIndex
-                ? "bg-blue-600/20 text-[#e2e8f0]"
-                : "text-[#94a3b8] hover:bg-[#1a1a2e]"
+                ? "bg-blue-600/20 text-text-primary"
+                : "text-text-interactive hover:bg-surface-hover"
             }`}
           >
             <span className="text-blue-400 font-mono text-xs shrink-0">

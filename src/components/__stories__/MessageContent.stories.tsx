@@ -6,7 +6,7 @@ const meta: Meta<typeof MessageContent> = {
   component: MessageContent,
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: 600, padding: 20, background: "#16162a", borderRadius: 16 }}>
+      <div style={{ maxWidth: 600, padding: 20, background: "var(--color-surface-2)", borderRadius: 16 }}>
         <Story />
       </div>
     ),

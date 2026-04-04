@@ -99,7 +99,7 @@ export function InputBar({
         visible={showSlash}
       />
 
-      <div className="flex items-center gap-2 bg-[#12121e] border border-[#1e1e3a] rounded-2xl px-4 py-3">
+      <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-2xl px-4 py-3">
         <textarea
           ref={inputRef}
           value={input}
@@ -107,7 +107,7 @@ export function InputBar({
           onKeyDown={handleKeyDown}
           placeholder="Message Claudio... (/ for skills)"
           rows={1}
-          className="flex-1 bg-transparent text-[#e2e8f0] text-sm resize-none outline-none placeholder-[#475569] leading-normal"
+          className="flex-1 bg-transparent text-text-primary text-sm resize-none outline-none placeholder-text-secondary leading-normal"
           style={{ maxHeight: "120px" }}
         />
         {isStreaming ? (
@@ -133,7 +133,7 @@ export function InputBar({
         )}
       </div>
       <div className="flex items-center justify-between mt-2 px-2">
-        <span className="text-[#334155] text-xs">
+        <span className="text-text-tertiary text-xs">
           Enter to send · Shift+Enter for newline · / for skills · ⌘K search
         </span>
         {isStreaming && (

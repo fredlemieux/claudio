@@ -33,7 +33,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-[#1e1e3a] text-[#94a3b8] hover:text-[#e2e8f0] hover:bg-[#2a2a4a] transition-all opacity-0 group-hover:opacity-100"
+      className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-border text-text-interactive hover:text-text-primary hover:bg-border-hover transition-all opacity-0 group-hover:opacity-100"
       title="Copy code"
     >
       {copied ? (
@@ -72,7 +72,7 @@ const components: Components = {
   pre({ children }) {
     const text = extractTextContent(children);
     return (
-      <pre className="group relative bg-[#0a0a14] rounded-lg p-4 my-2 overflow-x-auto text-xs border border-[#1e1e3a]">
+      <pre className="group relative bg-base rounded-lg p-4 my-2 overflow-x-auto text-xs border border-border">
         <CopyButton text={text} />
         {children}
       </pre>
@@ -83,7 +83,7 @@ const components: Components = {
     if (isInline) {
       return (
         <code
-          className="bg-[#1a1a2e] text-blue-300 px-1.5 py-0.5 rounded text-xs"
+          className="bg-surface-hover text-blue-300 px-1.5 py-0.5 rounded text-xs"
           {...props}
         >
           {children}
@@ -94,7 +94,7 @@ const components: Components = {
     return (
       <div className="relative">
         {language && (
-          <span className="absolute top-0 right-0 text-[10px] text-[#475569] bg-[#12121e] px-2 py-0.5 rounded-bl group-hover:right-16">
+          <span className="absolute top-0 right-0 text-[10px] text-text-secondary bg-surface-2 px-2 py-0.5 rounded-bl group-hover:right-16">
             {language}
           </span>
         )}
@@ -139,7 +139,7 @@ const components: Components = {
   },
   blockquote({ children }) {
     return (
-      <blockquote className="border-l-2 border-blue-500 pl-3 my-2 text-[#94a3b8]">
+      <blockquote className="border-l-2 border-blue-500 pl-3 my-2 text-text-interactive">
         {children}
       </blockquote>
     );
@@ -153,18 +153,18 @@ const components: Components = {
   },
   th({ children }) {
     return (
-      <th className="border border-[#1e1e3a] px-3 py-1.5 bg-[#0a0a14] text-left font-semibold">
+      <th className="border border-border px-3 py-1.5 bg-base text-left font-semibold">
         {children}
       </th>
     );
   },
   td({ children }) {
     return (
-      <td className="border border-[#1e1e3a] px-3 py-1.5">{children}</td>
+      <td className="border border-border px-3 py-1.5">{children}</td>
     );
   },
   hr() {
-    return <hr className="border-[#1e1e3a] my-3" />;
+    return <hr className="border-border my-3" />;
   },
 };
 

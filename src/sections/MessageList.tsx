@@ -35,7 +35,7 @@ export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, dra
             className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
               msg.role === "user"
                 ? "bg-blue-600 text-white"
-                : "bg-[#16162a] text-[#e2e8f0] border border-[#1e1e3a]"
+                : "bg-surface-3 text-text-primary border border-border"
             }`}
           >
             {msg.role === "assistant" && !msg.content && isStreaming ? (
@@ -51,7 +51,7 @@ export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, dra
               <ToolUseIndicator tools={toolCalls} />
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 px-1 text-[10px] text-[#334155]">
+          <div className="flex items-center gap-2 mt-1 px-1 text-[10px] text-text-tertiary">
             {msg.timestamp && (
               <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
             )}

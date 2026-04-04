@@ -33,7 +33,7 @@ export function TitleBar({
   onOpenSettings,
 }: TitleBarProps) {
   return (
-    <div className="flex items-center h-12 px-4 bg-[#0e0e1a] border-b border-[#1e1e3a]">
+    <div className="flex items-center h-12 px-4 bg-surface-1 border-b border-border">
       <SessionSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -44,8 +44,8 @@ export function TitleBar({
         onDelete={onDeleteSession}
       />
       <span className="text-blue-400 font-semibold text-sm ml-3">Claudio</span>
-      <span className="ml-2 text-[#475569] text-xs">v0.1</span>
-      <span className="ml-1.5 text-[10px] text-[#334155] bg-[#12121e] px-1.5 py-0.5 rounded border border-[#1e1e3a]">
+      <span className="ml-2 text-text-secondary text-xs">v0.1</span>
+      <span className="ml-1.5 text-[10px] text-text-tertiary bg-surface-2 px-1.5 py-0.5 rounded border border-border">
         {model}
       </span>
       {isStreaming && (
@@ -55,13 +55,13 @@ export function TitleBar({
         </span>
       )}
       {activeSession?.claudeSessionId && !isStreaming && (
-        <span className="ml-2 text-[#334155] text-[10px]">
+        <span className="ml-2 text-text-tertiary text-[10px]">
           Session active
         </span>
       )}
       <button
         onClick={onPickDirectory}
-        className="ml-3 flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] text-xs transition-colors max-w-[200px] truncate"
+        className="ml-3 flex items-center gap-1.5 text-text-secondary hover:text-text-interactive text-xs transition-colors max-w-[200px] truncate"
         title={activeSession?.workingDirectory || "Select working directory"}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
@@ -76,16 +76,16 @@ export function TitleBar({
       <div className="ml-auto flex items-center gap-3">
         <button
           onClick={onOpenPalette}
-          className="flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] text-xs transition-colors"
+          className="flex items-center gap-1.5 text-text-secondary hover:text-text-interactive text-xs transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
           </svg>
-          <kbd className="text-[10px] bg-[#0a0a14] px-1.5 py-0.5 rounded border border-[#1e1e3a]">⌘K</kbd>
+          <kbd className="text-[10px] bg-base px-1.5 py-0.5 rounded border border-border">⌘K</kbd>
         </button>
         <button
           onClick={onOpenSettings}
-          className="text-[#475569] hover:text-[#94a3b8] transition-colors"
+          className="text-text-secondary hover:text-text-interactive transition-colors"
           title="Settings (⌘,)"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
