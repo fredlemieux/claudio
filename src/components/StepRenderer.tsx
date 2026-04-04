@@ -88,15 +88,19 @@ interface StepRendererProps {
 }
 
 export function StepRenderer({ steps }: StepRendererProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Default collapsed — the step list is secondary info, don't expand by default
+  const [collapsed, setCollapsed] = useState(true);
 
   if (!steps || steps.length === 0) return null;
 
   return (
-    <div className="mt-2 mb-1">
+    // Border-top separates the step list from the message content above.
+    // w-full + the button being full-width means the collapsed state looks intentional
+    // rather than a half-empty box with a lone left-aligned button.
+    <div className="mt-3 pt-2 border-t border-white/10 w-full">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 text-[10px] text-text-tertiary hover:text-text-interactive transition-colors mb-1"
+        className="flex items-center gap-1.5 text-[10px] text-text-tertiary hover:text-text-interactive transition-colors w-full"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -106,11 +110,11 @@ export function StepRenderer({ steps }: StepRendererProps) {
         >
           <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
         </svg>
-        <span>{steps.length} steps</span>
+        <span>{steps.length} step{steps.length !== 1 ? "s" : ""}</span>
       </button>
 
       {!collapsed && (
-        <div className="space-y-1">
+        <div className="mt-1.5 space-y-1">
           {steps.map((step) => (
             <StepItem key={step.id} step={step} />
           ))}

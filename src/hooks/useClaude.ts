@@ -1,5 +1,5 @@
 import {useCallback, useRef, useState} from "react";
-import {type Child, Command} from "@tauri-apps/plugin-shell";
+import {Command} from "@tauri-apps/plugin-shell";
 import {
   type AlgorithmPhase,
   type ISCriterion,
@@ -11,6 +11,33 @@ import type {LogEntry} from "../components/DebugConsole";
 import type {Message, StreamStep} from "../types";
 import type {Session} from "./useSessions";
 import type {ClaudeModel} from "../components/SettingsPanel";
+import {handleStreamEvent, type StreamEvent, type StreamEventCallbacks} from "../utils/handleStreamEvent";
+
+// Minimal interface for the Tauri Child object — only what useClaude actually uses.
+interface SpawnedChild {
+  pid: number;
+  kill(): Promise<void>;
+}
+
+// Minimal interface for the Tauri Command object — only the surface useClaude touches.
+// Keeping this separate from Tauri's types lets tests inject a fake without Tauri.
+interface SpawnableCommand {
+  stdout: { on(event: "data", cb: (data: Uint8Array | string) => void): void };
+  stderr: { on(event: "data", cb: (data: Uint8Array | string) => void): void };
+  on(event: "close", cb: (payload: { code: number | null; signal: string | null }) => void): void;
+  on(event: "error", cb: (error: string) => void): void;
+  spawn(): Promise<SpawnedChild>;
+}
+
+/**
+ * Factory that creates a command object. Defaults to Tauri's Command.create.
+ * Inject a fake in tests to exercise sendMessage without spawning real processes.
+ */
+export type CommandFactory = (
+  program: string,
+  args: string[],
+  opts: Record<string, unknown>,
+) => SpawnableCommand;
 
 export interface UseClaudeOptions {
   sessions: Session[];
@@ -20,168 +47,54 @@ export interface UseClaudeOptions {
   updateMessages: (sessionId: string, messages: Message[]) => void;
   setClaudeSessionId: (sessionId: string, claudeSessionId: string) => void;
   model: ClaudeModel;
+  /** Override the command factory — defaults to Tauri's Command.create. Useful in tests. */
+  createCommand?: CommandFactory;
 }
-
-interface StreamEvent {
-  type: string;
-  subtype?: string;
-  session_id?: string;
-  [key: string]: unknown;
-}
-
-/**
- * All side-effects that handleStreamEvent can produce, passed in as callbacks.
- * This decouples the event-parsing logic from React state and Tauri entirely —
- * making handleStreamEvent a pure function that's easy to unit test.
- */
-export interface StreamEventCallbacks {
-  addLog: (level: LogEntry["level"], source: LogEntry["source"], message: string) => void;
-  addStep: (step: StreamStep) => void;
-  appendContent: (delta: string) => void;
-  setContent: (fullContent: string) => void;
-  finalizeMessage: (costUsd?: number, durationMs?: number) => void;
-  /** Called when the result event carries a session_id to persist for --resume */
-  onSessionId: (claudeSessionId: string) => void;
-  /** Returns the current accumulated content — used for multi-turn dedup logic */
-  getBuffer: () => string;
-  /** When sendMessage started — used as duration fallback if result event omits it */
-  startTime: number;
+interface StreamBuffer {
+  /** Append a text delta and schedule an rAF flush. */
+  append(delta: string): void;
+  /** Replace the entire content and flush immediately. */
+  setFull(content: string): void;
+  /** Add a step entry and schedule an rAF flush. */
+  addStep(step: StreamStep): void;
+  /** Return the current accumulated content string. */
+  getContent(): string;
+  /** Flush immediately, bypassing rAF debouncing. */
+  forceFlush(): void;
 }
 
 /**
- * Pure function: handles a single stream event from Claude's --stream-json output.
+ * Creates a buffer that coalesces rapid content updates via rAF debouncing.
+ * Call once per sendMessage invocation — not at the React hook level.
  *
- * No React, no Tauri, no closures — all side-effects flow through `cb`.
- * Testable by passing synthetic events and asserting which callbacks fire.
+ * onFlush receives the latest content + steps each time the buffer drains.
  */
-export function handleStreamEvent(
-  event: StreamEvent,
-  rawJsonStr: string,
-  cb: StreamEventCallbacks,
-): void {
-  switch (event.type) {
-    case "system": {
-      if (event.subtype === "init") {
-        cb.addLog("info", "system", `Session init: model=${event.model}`);
-        cb.addStep({
-          id: crypto.randomUUID(), type: "system", timestamp: Date.now(),
-          summary: `Session init — model: ${event.model}`,
-          rawJson: rawJsonStr,
-        });
-      } else {
-        cb.addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
-      }
-      break;
+function createStreamBuffer(
+  onFlush: (content: string, steps: StreamStep[]) => void,
+): StreamBuffer {
+  let content = "";
+  let steps: StreamStep[] = [];
+  let rafPending = false;
+
+  const flush = () => {
+    rafPending = false;
+    onFlush(content, steps);
+  };
+
+  const schedule = () => {
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(flush);
     }
+  };
 
-    case "assistant": {
-      const msg = event.message as {
-        content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
-      } | undefined;
-      const blocks = msg?.content ?? [];
-      cb.addLog("debug", "stream", `assistant event: ${blocks.length} blocks`);
-
-      for (const block of blocks) {
-        if (block.type === "thinking" && block.thinking) {
-          cb.addStep({
-            id: crypto.randomUUID(), type: "thinking", timestamp: Date.now(),
-            summary: block.thinking.slice(0, 300) + (block.thinking.length > 300 ? "…" : ""),
-            rawJson: rawJsonStr,
-          });
-        } else if (block.type === "text" && block.text) {
-          cb.addLog("debug", "stream", `text: ${block.text.length} chars`);
-          // Append with separator — multi-turn responses produce multiple assistant events,
-          // each with the complete text for that turn. stream_event deltas already built
-          // the content for this turn, so skip if the buffer already ends with this text.
-          const buffer = cb.getBuffer();
-          if (buffer && !buffer.endsWith(block.text)) {
-            cb.appendContent("\n\n" + block.text);
-          } else if (!buffer) {
-            cb.setContent(block.text);
-          }
-          cb.addStep({
-            id: crypto.randomUUID(), type: "text", timestamp: Date.now(),
-            summary: block.text,
-            rawJson: rawJsonStr,
-          });
-        } else if (block.type === "tool_use") {
-          const inputStr = block.input ? JSON.stringify(block.input) : "";
-          const inputPreview = inputStr.slice(0, 200) + (inputStr.length > 200 ? "…" : "");
-          cb.addStep({
-            id: crypto.randomUUID(), type: "tool_use", timestamp: Date.now(),
-            toolName: block.name,
-            summary: `${block.name}(${inputPreview})`,
-            rawJson: rawJsonStr,
-          });
-        }
-      }
-      break;
-    }
-
-    case "user": {
-      // Tool results
-      const userMsg = event.message as {
-        content?: Array<{ type: string; content?: string; tool_use_id?: string; is_error?: boolean }>;
-      } | undefined;
-      const results = userMsg?.content ?? [];
-      for (const result of results) {
-        if (result.type === "tool_result") {
-          const preview = (result.content ?? "").slice(0, 300) + ((result.content?.length ?? 0) > 300 ? "…" : "");
-          cb.addStep({
-            id: crypto.randomUUID(), type: "tool_result", timestamp: Date.now(),
-            summary: result.is_error ? `ERROR: ${preview}` : preview,
-            rawJson: rawJsonStr,
-          });
-        }
-      }
-      cb.addLog("debug", "stream", `user event: ${results.length} results`);
-      break;
-    }
-
-    case "stream_event": {
-      const streamEvt = event.event as {
-        type: string;
-        delta?: { type: string; text?: string };
-      } | undefined;
-      if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
-        cb.appendContent(streamEvt.delta.text);
-        const bufLen = cb.getBuffer().length;
-        if (bufLen % 200 < 10) {
-          cb.addLog("debug", "stream", `streaming... buffer=${bufLen} chars`);
-        }
-      }
-      break;
-    }
-
-    case "result": {
-      cb.addLog("info", "stream", `result: session=${event.session_id ?? "none"}`);
-      if (event.session_id) {
-        cb.onSessionId(event.session_id as string);
-      }
-      const costUsd = (event.total_cost_usd ?? event.cost_usd) as number | undefined;
-      const durationMs = (event.duration_ms ?? (Date.now() - cb.startTime)) as number;
-
-      if (typeof event.result === "string" && event.result) {
-        cb.setContent(event.result);
-      }
-
-      cb.addStep({
-        id: crypto.randomUUID(), type: "result", timestamp: Date.now(),
-        summary: `Done — ${(durationMs / 1000).toFixed(1)}s, $${costUsd?.toFixed(4) ?? "?"}`,
-        rawJson: rawJsonStr,
-      });
-
-      cb.finalizeMessage(costUsd, durationMs);
-      break;
-    }
-
-    case "rate_limit_event":
-      cb.addLog("warn", "system", `Rate limit: ${JSON.stringify(event.rate_limit_info)}`);
-      break;
-
-    default:
-      cb.addLog("debug", "stream", `Event: ${event.type}/${event.subtype ?? ""}`);
-  }
+  return {
+    append: (delta) => { content += delta; schedule(); },
+    setFull: (full) => { content = full; flush(); },
+    addStep: (step) => { steps = [...steps, step]; schedule(); },
+    getContent: () => content,
+    forceFlush: flush,
+  };
 }
 
 export function useClaude({
@@ -192,6 +105,7 @@ export function useClaude({
   updateMessages,
   setClaudeSessionId,
   model,
+  createCommand = Command.create as unknown as CommandFactory,
 }: UseClaudeOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -200,7 +114,7 @@ export function useClaude({
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [debugLogs, setDebugLogs] = useState<LogEntry[]>([]);
   const [debugVisible, setDebugVisible] = useState(false);
-  const childRef = useRef<Child | null>(null);
+  const childRef = useRef<SpawnedChild | null>(null);
 
   const addLog = useCallback((level: LogEntry["level"], source: LogEntry["source"], message: string) => {
     setDebugLogs((prev) => [
@@ -261,49 +175,20 @@ export function useClaude({
     setIsStreaming(true);
     setToolCalls([]);
 
-    // Content buffer for rAF-debounced streaming updates
-    let contentBuffer = "";
-    let stepsBuffer: StreamStep[] = [];
-    let rafPending = false;
-
-    const addStep = (step: StreamStep) => {
-      stepsBuffer = [...stepsBuffer, step];
-      scheduleFlush();
-    };
-
-    const flushContent = () => {
-      rafPending = false;
+    const buf = createStreamBuffer((content, steps) => {
       latestMessages = latestMessages.map((m) =>
-        m.id === assistantMsg.id ? { ...m, content: contentBuffer, steps: stepsBuffer } : m
+        m.id === assistantMsg.id ? { ...m, content, steps } : m
       );
       updateMessages(sessionId!, latestMessages);
-      const algoState = parseAlgorithmState(contentBuffer);
+      const algoState = parseAlgorithmState(content);
       if (algoState.phases.some((p) => p.status !== "pending")) {
         setAlgoPhases(algoState.phases);
         setAlgoCriteria(algoState.criteria);
       }
-    };
-
-    const scheduleFlush = () => {
-      if (!rafPending) {
-        rafPending = true;
-        requestAnimationFrame(flushContent);
-      }
-    };
-
-    const appendContent = (delta: string) => {
-      contentBuffer += delta;
-      scheduleFlush();
-    };
-
-    const setContent = (fullContent: string) => {
-      contentBuffer = fullContent;
-      flushContent();
-    };
+    });
 
     const finalizeMessage = (costUsd?: number, durationMs?: number) => {
-      // Ensure final content is flushed
-      flushContent();
+      buf.forceFlush();
       latestMessages = latestMessages.map((m) =>
         m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
       );
@@ -311,15 +196,15 @@ export function useClaude({
     };
 
     // Wire up the callbacks that connect the pure handleStreamEvent function
-    // to this message send's local state (contentBuffer, latestMessages, etc.)
+    // to this message send's local state (buf, latestMessages, etc.)
     const streamCallbacks: StreamEventCallbacks = {
       addLog,
-      addStep,
-      appendContent,
-      setContent,
+      addStep: buf.addStep,
+      appendContent: buf.append,
+      setContent: buf.setFull,
       finalizeMessage,
       onSessionId: (claudeSessionId) => setClaudeSessionId(sessionId!, claudeSessionId),
-      getBuffer: () => contentBuffer,
+      getBuffer: buf.getContent,
       startTime: now,
     };
 
@@ -354,7 +239,7 @@ export function useClaude({
       const bashScript = 'unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude "$@" < /dev/null';
       const bashArgs = ["-c", bashScript, "--", ...args];
       addLog("info", "app", `Wrapping via bash (stdin=/dev/null): bash -c '...' -- ${args.join(" ")}`);
-      const command = Command.create("bash", bashArgs, spawnOpts);
+      const command = createCommand("bash", bashArgs, spawnOpts);
       addLog("debug", "app", `Command created (bash wrapper, encoding=raw), wiring event handlers...`);
 
       let stdoutChunkCount = 0;
@@ -409,18 +294,18 @@ export function useClaude({
           lineBuffer = "";
         }
 
-        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutChunks=${stdoutChunkCount}, stderrLines=${stderrLineCount}, contentBuffer=${contentBuffer.length} chars`);
+        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutChunks=${stdoutChunkCount}, stderrLines=${stderrLineCount}, contentBuffer=${buf.getContent().length} chars`);
         childRef.current = null;
 
         // If non-zero exit without a result event, show error
-        if (payload.code !== 0 && !contentBuffer) {
+        if (payload.code !== 0 && !buf.getContent()) {
           addLog("warn", "process", `Non-zero exit with empty content buffer — showing error to user`);
           const errorContent = payload.signal
             ? `**Process killed** (signal: ${payload.signal})`
             : `**Process exited with code ${payload.code}**\n\nCheck the debug console for details.`;
-          setContent(errorContent);
+          buf.setFull(errorContent);
           setDebugVisible(true);
-        } else if (payload.code === 0 && !contentBuffer) {
+        } else if (payload.code === 0 && !buf.getContent()) {
           addLog("warn", "process", `Exit code 0 but content buffer is EMPTY — no content was streamed`);
         }
 
@@ -429,7 +314,7 @@ export function useClaude({
 
       command.on("error", (error: string) => {
         addLog("error", "process", `Process ERROR event: ${error}`);
-        setContent(`**Process error:**\n\n\`\`\`\n${error}\n\`\`\``);
+        buf.setFull(`**Process error:**\n\n\`\`\`\n${error}\n\`\`\``);
         setIsStreaming(false);
         setDebugVisible(true);
       });
@@ -443,7 +328,7 @@ export function useClaude({
       // Timeout warning — Claude API can take 10-30s for cold start
       setTimeout(() => {
         if (stdoutChunkCount === 0 && childRef.current) {
-          addLog("warn", "app", `⚠️ No stdout chunks received after 15s! pid=${child.pid}, stderrLines=${stderrLineCount}. Process may be hung.`);
+          addLog("warn", "app", `⚠️ No stdout chunks received after 15s! pid=${child.pid}, stderrLines=${stderrLineCount}, bufLen=${buf.getContent().length}. Process may be hung.`);
           setDebugVisible(true);
         }
       }, 15000);
