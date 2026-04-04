@@ -4,7 +4,7 @@ import { parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "../c
 import type { AgentInfo } from "../components/AgentDrawer";
 import type { ToolCall } from "../components/ToolUseIndicator";
 import type { LogEntry } from "../components/DebugConsole";
-import type { Message } from "../types";
+import type { Message, StreamStep } from "../types";
 import type { Session } from "./useSessions";
 import type { ClaudeModel } from "../components/SettingsPanel";
 
@@ -93,6 +93,7 @@ export function useClaude({
       role: "assistant",
       content: "",
       timestamp: now,
+      steps: [],
     };
 
     const currentMessages = activeSession?.messages || [];
@@ -104,12 +105,18 @@ export function useClaude({
 
     // Content buffer for rAF-debounced streaming updates
     let contentBuffer = "";
+    let stepsBuffer: StreamStep[] = [];
     let rafPending = false;
+
+    const addStep = (step: StreamStep) => {
+      stepsBuffer = [...stepsBuffer, step];
+      scheduleFlush();
+    };
 
     const flushContent = () => {
       rafPending = false;
       latestMessages = latestMessages.map((m) =>
-        m.id === assistantMsg.id ? { ...m, content: contentBuffer } : m
+        m.id === assistantMsg.id ? { ...m, content: contentBuffer, steps: stepsBuffer } : m
       );
       updateMessages(sessionId!, latestMessages);
       const algoState = parseAlgorithmState(contentBuffer);
@@ -145,11 +152,16 @@ export function useClaude({
       updateMessages(sessionId!, latestMessages);
     };
 
-    function handleStreamEvent(event: StreamEvent) {
+    function handleStreamEvent(event: StreamEvent, rawJsonStr: string) {
       switch (event.type) {
         case "system": {
           if (event.subtype === "init") {
             addLog("info", "system", `Session init: model=${event.model}`);
+            addStep({
+              id: crypto.randomUUID(), type: "system", timestamp: Date.now(),
+              summary: `Session init — model: ${event.model}`,
+              rawJson: rawJsonStr,
+            });
           } else {
             addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
           }
@@ -157,54 +169,106 @@ export function useClaude({
         }
 
         case "assistant": {
-          // Complete assistant message — extract text content
-          const msg = event.message as { content?: Array<{ type: string; text?: string }> } | undefined;
-          addLog("debug", "stream", `assistant event: message content blocks=${msg?.content?.length ?? 0}`);
-          const text = msg?.content
-            ?.filter((b) => b.type === "text")
-            .map((b) => b.text ?? "")
-            .join("") ?? "";
-          addLog("debug", "stream", `assistant text extracted: ${text.length} chars, first 100: ${text.slice(0, 100)}`);
-          if (text) {
-            setContent(text);
+          const msg = event.message as {
+            content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
+          } | undefined;
+          const blocks = msg?.content ?? [];
+          addLog("debug", "stream", `assistant event: ${blocks.length} blocks`);
+
+          for (const block of blocks) {
+            if (block.type === "thinking" && block.thinking) {
+              addStep({
+                id: crypto.randomUUID(), type: "thinking", timestamp: Date.now(),
+                summary: block.thinking.slice(0, 300) + (block.thinking.length > 300 ? "…" : ""),
+                rawJson: rawJsonStr,
+              });
+            } else if (block.type === "text" && block.text) {
+              addLog("debug", "stream", `text: ${block.text.length} chars`);
+              // Append with separator — multi-turn responses produce multiple
+              // assistant events, each with complete text for that turn.
+              // stream_event deltas already built the content for this turn,
+              // so replace with the complete text from this assistant event,
+              // preserving any content from prior turns.
+              if (contentBuffer && !contentBuffer.endsWith(block.text)) {
+                // Prior content exists and this is new text — append
+                appendContent("\n\n" + block.text);
+              } else if (!contentBuffer) {
+                setContent(block.text);
+              }
+              // If contentBuffer already ends with this text (from stream_event
+              // deltas), skip — the deltas already wrote it.
+              addStep({
+                id: crypto.randomUUID(), type: "text", timestamp: Date.now(),
+                summary: block.text,
+                rawJson: rawJsonStr,
+              });
+            } else if (block.type === "tool_use") {
+              const inputStr = block.input ? JSON.stringify(block.input) : "";
+              const inputPreview = inputStr.slice(0, 200) + (inputStr.length > 200 ? "…" : "");
+              addStep({
+                id: crypto.randomUUID(), type: "tool_use", timestamp: Date.now(),
+                toolName: block.name,
+                summary: `${block.name}(${inputPreview})`,
+                rawJson: rawJsonStr,
+              });
+            }
           }
           break;
         }
 
+        case "user": {
+          // Tool results
+          const userMsg = event.message as {
+            content?: Array<{ type: string; content?: string; tool_use_id?: string; is_error?: boolean }>;
+          } | undefined;
+          const results = userMsg?.content ?? [];
+          for (const result of results) {
+            if (result.type === "tool_result") {
+              const preview = (result.content ?? "").slice(0, 300) + ((result.content?.length ?? 0) > 300 ? "…" : "");
+              addStep({
+                id: crypto.randomUUID(), type: "tool_result", timestamp: Date.now(),
+                summary: result.is_error ? `ERROR: ${preview}` : preview,
+                rawJson: rawJsonStr,
+              });
+            }
+          }
+          addLog("debug", "stream", `user event: ${results.length} results`);
+          break;
+        }
+
         case "stream_event": {
-          // Partial streaming token — append to content buffer
           const streamEvt = event.event as {
             type: string;
             delta?: { type: string; text?: string };
           } | undefined;
           if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
             appendContent(streamEvt.delta.text);
-            // Log every 20th token to avoid flooding
             if (contentBuffer.length % 200 < 10) {
               addLog("debug", "stream", `streaming... buffer=${contentBuffer.length} chars`);
             }
-          } else {
-            addLog("debug", "stream", `stream_event: subtype=${streamEvt?.type}, has delta=${!!streamEvt?.delta}, has text=${!!streamEvt?.delta?.text}`);
           }
           break;
         }
 
         case "result": {
-          addLog("info", "stream", `result event received: subtype=${event.subtype}, session_id=${event.session_id ?? "none"}, has result=${!!event.result}`);
+          addLog("info", "stream", `result: session=${event.session_id ?? "none"}`);
           if (event.session_id) {
             setClaudeSessionId(sessionId!, event.session_id as string);
           }
           const costUsd = (event.total_cost_usd ?? event.cost_usd) as number | undefined;
           const durationMs = (event.duration_ms ?? (Date.now() - now)) as number;
 
-          // If result contains final text, use it
           if (typeof event.result === "string" && event.result) {
-            addLog("debug", "stream", `result text: ${(event.result as string).length} chars`);
             setContent(event.result);
           }
 
+          addStep({
+            id: crypto.randomUUID(), type: "result", timestamp: Date.now(),
+            summary: `Done — ${((durationMs) / 1000).toFixed(1)}s, $${costUsd?.toFixed(4) ?? "?"}`,
+            rawJson: rawJsonStr,
+          });
+
           finalizeMessage(costUsd, durationMs);
-          addLog("info", "process", `Result: session=${event.session_id || "none"}, cost=$${costUsd ?? "?"}, duration=${durationMs}ms`);
           break;
         }
 
@@ -227,7 +291,6 @@ export function useClaude({
         : baseArgs;
 
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
-      addLog("debug", "app", `Session lookup: sessionId=${sessionId}, claudeSessionId=${claudeSessionId ?? "none"}, cwd=${cwd ?? "none"}`);
 
       // Use encoding: 'raw' to bypass Tauri Issue #1632 — spawn() buffers stdout
       // until a newline is encountered, which breaks streaming for long-running processes.
@@ -238,88 +301,7 @@ export function useClaude({
         ...(cwd ? { cwd } : {}),
         encoding: "raw",
       };
-      addLog("debug", "app", `Spawn options: ${JSON.stringify(spawnOpts)}`);
 
-      // --- Diagnostics: incremental test battery ---
-      // Tests progressively from simplest to most complex to find exactly where it breaks.
-      // Each test logs results to debug console. All use execute() (proven working for quick cmds)
-      // except the bash spawn test which validates Tauri's streaming delivery.
-
-      const diagTests = [
-        { name: "claude --version", args: ["--version"] },
-        { name: "claude --help (length)", args: ["--help"] },
-        { name: "claude -p 'hi' (no flags)", args: ["-p", "hi", "--model", "haiku"] },
-        { name: "claude -p 'hi' --output-format json", args: ["-p", "hi", "--output-format", "json", "--model", "haiku"] },
-        { name: "claude -p 'hi' --output-format stream-json --verbose", args: ["-p", "hi", "--output-format", "stream-json", "--verbose", "--model", "haiku"] },
-      ];
-
-      // Run execute() tests sequentially (each waits for result)
-      for (let i = 0; i < diagTests.length; i++) {
-        const test = diagTests[i];
-        try {
-          addLog("info", "diag", `[${i + 1}/${diagTests.length}] execute() ${test.name}`);
-          const cmd = Command.create("claude", test.args);
-          const out = await cmd.execute();
-          const summary = out.stdout.length > 200
-            ? `${out.stdout.length} chars, first 100: "${out.stdout.slice(0, 100)}"`
-            : `"${out.stdout.trim()}"`;
-          addLog("info", "diag", `[${i + 1}/${diagTests.length}] ${out.code === 0 ? "✅" : "❌"} exit=${out.code}, stdout=${summary}, stderr=${out.stderr.length > 0 ? `"${out.stderr.slice(0, 200)}"` : "empty"}`);
-        } catch (err) {
-          addLog("error", "diag", `[${i + 1}/${diagTests.length}] ❌ FAILED: ${err}`);
-        }
-      }
-
-      // Spawn test: bash with timed echo — validates Tauri spawn() + raw encoding delivers stdout
-      try {
-        addLog("info", "diag", `[SPAWN] bash timed echo (encoding=raw) — Tauri streaming test`);
-        const bashCmd = Command.create("bash", ["-c", "echo DIAG_IMMEDIATE && sleep 2 && echo DIAG_AFTER_2S"], { encoding: "raw" });
-        let bashChunks = 0;
-        const bashDecoder = new TextDecoder();
-        bashCmd.stdout.on("data", (raw: Uint8Array | string) => {
-          bashChunks++;
-          const text = typeof raw === "string" ? raw : bashDecoder.decode(new Uint8Array(raw), { stream: true });
-          addLog("info", "diag", `[SPAWN] 🔶 bash chunk #${bashChunks}: "${text.trim()}"`);
-        });
-        bashCmd.stderr.on("data", (raw: Uint8Array | string) => {
-          const text = typeof raw === "string" ? raw : bashDecoder.decode(new Uint8Array(raw), { stream: true });
-          addLog("warn", "diag", `[SPAWN] bash stderr: ${text}`);
-        });
-        bashCmd.on("close", (p) => {
-          addLog("info", "diag", `[SPAWN] bash CLOSED: code=${p.code}, chunks=${bashChunks}`);
-        });
-        const bashChild = await bashCmd.spawn();
-        addLog("info", "diag", `[SPAWN] bash pid=${bashChild.pid}`);
-      } catch (diagErr) {
-        addLog("error", "diag", `[SPAWN] ❌ bash FAILED: ${diagErr}`);
-      }
-
-      // Spawn test: simplest claude -p via bash wrapper (stdin from /dev/null + unsets env)
-      try {
-        addLog("info", "diag", `[SPAWN] claude -p via bash wrapper (stdin=/dev/null, unsets CLAUDECODE)`);
-        const wrapCmd = Command.create("bash", [
-          "-c", "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude -p hi --model haiku < /dev/null",
-        ], { encoding: "raw" });
-        let wrapChunks = 0;
-        const wrapDecoder = new TextDecoder();
-        wrapCmd.stdout.on("data", (raw: Uint8Array | string) => {
-          wrapChunks++;
-          const text = typeof raw === "string" ? raw : wrapDecoder.decode(new Uint8Array(raw), { stream: true });
-          addLog("info", "diag", `[SPAWN] 🔶 wrapped claude chunk #${wrapChunks} (${text.length} chars): "${text.slice(0, 150)}"`);
-        });
-        wrapCmd.stderr.on("data", (raw: Uint8Array | string) => {
-          const text = typeof raw === "string" ? raw : wrapDecoder.decode(new Uint8Array(raw), { stream: true });
-          addLog("warn", "diag", `[SPAWN] wrapped claude stderr: ${text}`);
-        });
-        wrapCmd.on("close", (p) => {
-          addLog("info", "diag", `[SPAWN] wrapped claude CLOSED: code=${p.code}, signal=${p.signal ?? "none"}, chunks=${wrapChunks}`);
-        });
-        const wrapChild = await wrapCmd.spawn();
-        addLog("info", "diag", `[SPAWN] wrapped claude pid=${wrapChild.pid}`);
-      } catch (diagErr) {
-        addLog("error", "diag", `[SPAWN] ❌ wrapped claude FAILED: ${diagErr}`);
-      }
-
-      // --- End diagnostics, proceed with main spawn ---
       // ROOT CAUSE FIX: Tauri spawn() keeps stdin piped open with no JS-side close API
       // (Tauri Issue #2136). Claude -p waits for stdin EOF before processing (Claude
       // Issue #34455). Without EOF, it hangs forever producing zero output.
@@ -356,7 +338,7 @@ export function useClaude({
           try {
             const event: StreamEvent = JSON.parse(trimmed);
             addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
-            handleStreamEvent(event);
+            handleStreamEvent(event, trimmed);
           } catch (parseErr) {
             addLog("warn", "stdout", `JSON parse FAILED: ${parseErr}. Raw: ${trimmed.slice(0, 300)}`);
           }
@@ -376,8 +358,9 @@ export function useClaude({
         if (lineBuffer.trim()) {
           addLog("debug", "stdout", `Flushing remaining lineBuffer (${lineBuffer.length} chars): ${lineBuffer.slice(0, 200)}`);
           try {
-            const event: StreamEvent = JSON.parse(lineBuffer.trim());
-            handleStreamEvent(event);
+            const trimmedLine = lineBuffer.trim();
+            const event: StreamEvent = JSON.parse(trimmedLine);
+            handleStreamEvent(event, trimmedLine);
           } catch {
             addLog("warn", "stdout", `Final lineBuffer not valid JSON: ${lineBuffer.slice(0, 200)}`);
           }

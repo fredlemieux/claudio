@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { MessageContent } from "../components/MessageContent";
+import { StepRenderer } from "../components/StepRenderer";
 import { ToolUseIndicator, type ToolCall } from "../components/ToolUseIndicator";
 import type { Message } from "../types";
 
@@ -46,6 +47,9 @@ export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, dra
               </div>
             ) : (
               <MessageContent content={msg.content} role={msg.role} />
+            )}
+            {msg.role === "assistant" && msg.steps && msg.steps.length > 0 && (
+              <StepRenderer steps={msg.steps} />
             )}
             {msg.role === "assistant" && isStreaming && index === messages.length - 1 && toolCalls.length > 0 && (
               <ToolUseIndicator tools={toolCalls} />

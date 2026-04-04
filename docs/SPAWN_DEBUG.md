@@ -194,19 +194,57 @@ Key elements:
 
 ---
 
-## Next Steps (Updated Session 4)
+## Conclusion — SOLVED ✅ (2026-04-04)
 
-### Immediate: Test from Tauri App
-1. [x] Terminal verification of stream-json + verbose + /dev/null
-2. [ ] **Launch `pnpm tauri dev` from a CLEAN terminal** (not inside Claude Code)
-3. [ ] Send a message and verify real-time streaming in the debug console
-4. [ ] Verify assistant text appears in chat as tokens stream
+**Status:** Fully working. Real-time streaming confirmed from Tauri app.
+
+### What Was Wrong
+
+Two independent issues combined to produce the symptom of "zero stdout from spawn()":
+
+1. **stdin EOF (primary):** Tauri's `spawn()` keeps stdin piped open with no JS-side API to close it
+   (Tauri Issue #2136). Claude Code's `-p` mode waits for stdin EOF before it starts processing the
+   prompt. Without EOF, the process hangs forever producing zero output. Tauri's `execute()` worked
+   because Rust's `std::process::Command::output()` drops the stdin handle immediately, providing
+   EOF. Fix: `< /dev/null` via bash wrapper.
+
+2. **Missing --verbose flag (secondary):** `--output-format stream-json` requires `--verbose` when
+   used with `-p` mode. Without it, the CLI exits with an error — but because stdin was also hung
+   (issue #1), this error was never visible. Once stdin was fixed, the missing flag surfaced as a
+   clear error message.
+
+Neither issue alone would have been obvious. The stdin hang masked the --verbose error, and the
+--verbose error would have been a quick fix if stdin had been working. Together they created the
+appearance of a deep, mysterious problem that took 4 sessions to diagnose.
+
+### What Was NOT Wrong
+
+- **Not Tauri buffering** — `encoding: 'raw'` helps but wasn't the root cause
+- **Not nesting detection** — `CLAUDECODE` env var contributes but unsetting it alone doesn't fix it
+- **Not process tree inspection** — Claude Code uses only env vars for nesting, not ppid/sockets
+- **Not stdout pipe buffering** — stream-json mode flushes per-line correctly
+
+### The Fix (5 lines)
+
+```typescript
+const bashScript = 'unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude "$@" < /dev/null';
+const bashArgs = ["-c", bashScript, "--", ...args]; // args includes --verbose
+const command = Command.create("bash", bashArgs, { encoding: "raw" });
+```
+
+### Verified Output (from Tauri app, 2026-04-04)
+
+- 36 stdout chunks received over ~20 seconds
+- Event types seen: system (hook_started, hook_response, init), assistant (thinking + text), rate_limit_event, result
+- Session ID captured: `134c1ec5-e1d3-4e9c-a76f-d6cf007a40db`
+- Cost captured: $0.181374
+- Assistant text rendered in chat: 399 chars
 
 ### Future Improvements
-5. [ ] Study Opcode (github.com/winfunc/opcode) for production patterns
-6. [ ] Consider `--input-format stream-json` for bidirectional streaming
-7. [ ] Evaluate Node.js sidecar + Agent SDK for v2 architecture
-8. [ ] Custom Rust `#[tauri::command]` with portable-pty for cross-platform PTY
+- [ ] Study Opcode (github.com/winfunc/opcode) for production patterns
+- [ ] Consider `--input-format stream-json` for bidirectional streaming
+- [ ] Evaluate Node.js sidecar + Agent SDK for v2 architecture
+- [ ] Custom Rust `#[tauri::command]` with portable-pty for cross-platform PTY
 
 ---
 

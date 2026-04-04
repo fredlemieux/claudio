@@ -1,54 +1,111 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Command } from "@tauri-apps/plugin-shell";
 import type { Skill } from "../types";
 
-// Skills are loaded from a curated list matching PAI's skill-index.json
-// Future: read dynamically via Tauri fs plugin
-const ALL_SKILLS: Skill[] = [
-  { name: "Research", path: "Research/SKILL.md", fullDescription: "Comprehensive research, analysis, and content extraction", triggers: ["research", "investigate", "find information"], tier: "always" },
-  { name: "Council", path: "Council/SKILL.md", fullDescription: "Multi-agent structured debate", triggers: ["council", "debate", "perspectives"], tier: "deferred" },
-  { name: "RedTeam", path: "RedTeam/SKILL.md", fullDescription: "Adversarial analysis with 32 agents", triggers: ["red team", "attack", "critique"], tier: "deferred" },
-  { name: "Browser", path: "Browser/SKILL.md", fullDescription: "Debug-first browser automation with visibility", triggers: ["browser", "screenshot", "debug web"], tier: "deferred" },
-  { name: "Art", path: "Art/SKILL.md", fullDescription: "Complete visual content system", triggers: ["art", "image", "illustration", "diagram"], tier: "deferred" },
-  { name: "FirstPrinciples", path: "FirstPrinciples/SKILL.md", fullDescription: "First principles decomposition to root causes", triggers: ["first principles", "root cause", "decompose"], tier: "deferred" },
-  { name: "Evals", path: "Evals/SKILL.md", fullDescription: "Agent evaluation framework", triggers: ["eval", "evaluate", "benchmark"], tier: "deferred" },
-  { name: "Science", path: "Science/SKILL.md", fullDescription: "Universal thinking engine based on scientific method", triggers: ["think about", "experiment", "iterate"], tier: "deferred" },
-  { name: "BeCreative", path: "BeCreative/SKILL.md", fullDescription: "Extended thinking and creative ideation", triggers: ["be creative", "deep thinking"], tier: "deferred" },
-  { name: "IterativeDepth", path: "IterativeDepth/SKILL.md", fullDescription: "Multi-angle iterative exploration", triggers: ["iterative depth", "deep exploration"], tier: "deferred" },
-  { name: "Agents", path: "Agents/SKILL.md", fullDescription: "Dynamic agent composition and management", triggers: ["create agents", "custom agents"], tier: "deferred" },
-  { name: "JIRA", path: "_JIRA/SKILL.md", fullDescription: "Jira ticket access via REST API", triggers: ["jira", "ticket", "sprint"], tier: "deferred" },
-  { name: "Clockify", path: "_CLOCKIFY/SKILL.md", fullDescription: "Time tracking via Clockify API", triggers: ["clockify", "time tracking", "hours"], tier: "deferred" },
-  { name: "Todoist", path: "Todoist/SKILL.md", fullDescription: "Todoist task management", triggers: ["todoist", "todo", "task"], tier: "deferred" },
-  { name: "GoogleTasks", path: "_GOOGLETASKS/SKILL.md", fullDescription: "Google Tasks integration", triggers: ["google tasks", "my tasks"], tier: "deferred" },
-  { name: "Worktree", path: "_WORKTREE/SKILL.md", fullDescription: "Git worktree manager with Jira integration", triggers: ["worktree", "branch"], tier: "deferred" },
-  { name: "PR", path: "_PR/SKILL.md", fullDescription: "Generate PR descriptions with diff analysis", triggers: ["pr", "pull request"], tier: "deferred" },
-  { name: "TechDebt", path: "_TECHDEBT/SKILL.md", fullDescription: "Create tech debt tickets without breaking flow", triggers: ["tech debt", "code smell"], tier: "deferred" },
-  { name: "Standup", path: "_STANDUP/SKILL.md", fullDescription: "Morning standup prep from all sources", triggers: ["standup", "daily standup"], tier: "deferred" },
-  { name: "Plan", path: "_PLAN/SKILL.md", fullDescription: "Forward work planning and priorities", triggers: ["plan", "priorities"], tier: "deferred" },
-  { name: "WOP", path: "_WOP/SKILL.md", fullDescription: "Work in Progress sync from Jira/GitHub", triggers: ["wop", "work in progress"], tier: "deferred" },
-  { name: "Fabric", path: "Fabric/SKILL.md", fullDescription: "240+ prompt patterns for content analysis", triggers: ["fabric", "pattern"], tier: "deferred" },
-  { name: "ExtractWisdom", path: "ExtractWisdom/SKILL.md", fullDescription: "Dynamic wisdom extraction from content", triggers: ["extract wisdom", "key takeaways"], tier: "deferred" },
-  { name: "Accountability", path: "Accountability/SKILL.md", fullDescription: "Track personal goals and habits", triggers: ["accountability", "check-in"], tier: "deferred" },
-  { name: "CreateSkill", path: "CreateSkill/SKILL.md", fullDescription: "Create and validate new skills", triggers: ["create skill", "new skill"], tier: "deferred" },
-  { name: "Cloudflare", path: "Cloudflare/SKILL.md", fullDescription: "Deploy Cloudflare Workers/Pages", triggers: ["cloudflare", "worker", "deploy"], tier: "deferred" },
-  { name: "Remotion", path: "Remotion/SKILL.md", fullDescription: "Programmatic video creation with React", triggers: ["video", "animation", "remotion"], tier: "deferred" },
-  { name: "OSINT", path: "OSINT/SKILL.md", fullDescription: "Open source intelligence gathering", triggers: ["osint", "due diligence"], tier: "deferred" },
-  { name: "Recon", path: "Recon/SKILL.md", fullDescription: "Security reconnaissance", triggers: ["recon", "bug bounty"], tier: "deferred" },
-  { name: "VoiceServer", path: "VoiceServer/SKILL.md", fullDescription: "Voice server management and TTS", triggers: ["voice", "mute", "unmute"], tier: "deferred" },
-  { name: "Slim", path: "Slim/SKILL.md", fullDescription: "Toggle compact statusline mode", triggers: ["slim", "statusline"], tier: "deferred" },
-  { name: "Telos", path: "Telos/SKILL.md", fullDescription: "Life OS and project analysis", triggers: ["telos", "life goals"], tier: "deferred" },
-  { name: "WriteStory", path: "WriteStory/SKILL.md", fullDescription: "Layered fiction writing system", triggers: ["write story", "fiction", "novel"], tier: "deferred" },
-  { name: "Prompting", path: "Prompting/SKILL.md", fullDescription: "Meta-prompting and template generation", triggers: ["prompting", "template"], tier: "deferred" },
-  { name: "Documents", path: "Documents/SKILL.md", fullDescription: "Document processing", triggers: ["document", "process file"], tier: "deferred" },
-  { name: "Parser", path: "Parser/SKILL.md", fullDescription: "Parse URLs, files, videos to JSON", triggers: ["parse", "extract", "transcript"], tier: "deferred" },
-  { name: "Apify", path: "Apify/SKILL.md", fullDescription: "Social media scraping via Apify actors", triggers: ["scrape", "twitter", "linkedin"], tier: "deferred" },
-  { name: "Sales", path: "Sales/SKILL.md", fullDescription: "Sales workflows and proposals", triggers: ["sales", "proposal", "pricing"], tier: "deferred" },
-];
+// Pure bash + jq scanner. Reads YAML frontmatter from each SKILL.md,
+// outputs one JSON object per line. jq handles all string escaping safely.
+// No Python, no Node — just standard macOS tools.
+const SCAN_SCRIPT = [
+  'for f in ~/.claude/skills/*/SKILL.md; do',
+  '  [ -f "$f" ] || continue',
+  '  dir=$(basename "$(dirname "$f")")',
+  '  name="" desc="" in_fm=false',
+  '  while IFS= read -r line; do',
+  '    [ "$in_fm" = false ] && [ "$line" = "---" ] && in_fm=true && continue',
+  '    [ "$in_fm" = true ] && [ "$line" = "---" ] && break',
+  '    if [ "$in_fm" = true ]; then',
+  '      case "$line" in name:*) name="${line#name: }";; description:*) desc="${line#description: }";; esac',
+  '    fi',
+  '  done < "$f"',
+  '  [ -n "$name" ] || name="$dir"',
+  '  jq -cn --arg n "$name" --arg d "$dir" --arg desc "$desc" \'{"name":$n,"dir":$d,"description":$desc}\'',
+  'done',
+].join("\n");
 
+/**
+ * Scan ~/.claude/skills/ directory for SKILL.md files and extract
+ * name + description from YAML frontmatter. This mirrors how Claude Code
+ * discovers skills at runtime — always in sync with what's on disk.
+ */
 export function useSkills() {
-  const [skills] = useState<Skill[]>(ALL_SKILLS);
-  const [loading] = useState(false);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  return { skills, loading };
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSkills() {
+      try {
+        const result = await Command.create("bash", ["-c", SCAN_SCRIPT]).execute();
+        if (cancelled) return;
+
+        if (result.code !== 0) {
+          setError(`Skills scan failed: ${result.stderr}`);
+          setLoading(false);
+          return;
+        }
+
+        const lines = result.stdout.trim().split("\n").filter(Boolean);
+        const parsed: Skill[] = lines.map((line) => {
+          try {
+            const obj = JSON.parse(line) as { name: string; dir: string; description: string };
+            const triggers = extractTriggers(obj.description);
+            const skill: Skill = {
+              name: obj.name,
+              path: `${obj.dir}/SKILL.md`,
+              fullDescription: cleanDescription(obj.description),
+              triggers,
+              tier: "deferred",
+            };
+            return skill;
+          } catch {
+            return null;
+          }
+        }).filter((s): s is Skill => s !== null);
+
+        // Sort: underscore-prefixed (integrations) last, then alphabetical
+        parsed.sort((a, b) => {
+          const aInt = a.name.startsWith("_") || a.path.startsWith("_");
+          const bInt = b.name.startsWith("_") || b.path.startsWith("_");
+          if (aInt !== bInt) return aInt ? 1 : -1;
+          return a.name.localeCompare(b.name);
+        });
+
+        setSkills(parsed);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadSkills();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { skills, loading, error };
+}
+
+/** Extract trigger words from "USE WHEN x, y, z" pattern in description */
+function extractTriggers(desc: string): string[] {
+  const match = desc.match(/USE WHEN\s+(.+?)(?:\.|$)/i);
+  if (!match) return [];
+  return match[1]
+    .split(/,|OR/i)
+    .map((t) => t.trim().replace(/^['"]|['"]$/g, ""))
+    .filter((t) => t.length > 0 && t.length < 40);
+}
+
+/** Strip "USE WHEN ..." clause for cleaner display */
+function cleanDescription(desc: string): string {
+  return desc
+    .replace(/\s*USE WHEN\s+.*/i, "")
+    .replace(/\s*\.\s*$/, "")
+    .trim();
 }
 
 export function filterSkills(skills: Skill[], query: string): Skill[] {

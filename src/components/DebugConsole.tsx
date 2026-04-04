@@ -4,7 +4,7 @@ export interface LogEntry {
   id: string;
   timestamp: number;
   level: "info" | "warn" | "error" | "debug";
-  source: "stdout" | "stderr" | "process" | "app" | "system" | "stream" | "diag";
+  source: "stdout" | "stderr" | "process" | "app" | "system" | "stream";
   message: string;
 }
 
@@ -29,7 +29,6 @@ const SOURCE_COLORS: Record<LogEntry["source"], string> = {
   app: "text-purple-400",
   system: "text-cyan-400",
   stream: "text-amber-400",
-  diag: "text-orange-400",
 };
 
 function formatTime(ts: number): string {
