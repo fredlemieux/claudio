@@ -18,6 +18,13 @@ export interface UseClaudeOptions {
   model: ClaudeModel;
 }
 
+interface StreamEvent {
+  type: string;
+  subtype?: string;
+  session_id?: string;
+  [key: string]: unknown;
+}
+
 export function useClaude({
   sessions,
   activeSessionId,
@@ -89,86 +96,181 @@ export function useClaude({
     };
 
     const currentMessages = activeSession?.messages || [];
-    let latestMessages = [...currentMessages, userMsg, assistantMsg];
+    const messagesRef = [...currentMessages, userMsg, assistantMsg];
+    let latestMessages = messagesRef;
     updateMessages(sessionId, latestMessages);
     setIsStreaming(true);
     setToolCalls([]);
 
-    const updateContent = (fullContent: string) => {
+    // Content buffer for rAF-debounced streaming updates
+    let contentBuffer = "";
+    let rafPending = false;
+
+    const flushContent = () => {
+      rafPending = false;
       latestMessages = latestMessages.map((m) =>
-        m.id === assistantMsg.id ? { ...m, content: fullContent } : m
+        m.id === assistantMsg.id ? { ...m, content: contentBuffer } : m
       );
       updateMessages(sessionId!, latestMessages);
-      const algoState = parseAlgorithmState(fullContent);
+      const algoState = parseAlgorithmState(contentBuffer);
       if (algoState.phases.some((p) => p.status !== "pending")) {
         setAlgoPhases(algoState.phases);
         setAlgoCriteria(algoState.criteria);
       }
     };
 
+    const scheduleFlush = () => {
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(flushContent);
+      }
+    };
+
+    const appendContent = (delta: string) => {
+      contentBuffer += delta;
+      scheduleFlush();
+    };
+
+    const setContent = (fullContent: string) => {
+      contentBuffer = fullContent;
+      flushContent();
+    };
+
+    const finalizeMessage = (costUsd?: number, durationMs?: number) => {
+      // Ensure final content is flushed
+      flushContent();
+      latestMessages = latestMessages.map((m) =>
+        m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
+      );
+      updateMessages(sessionId!, latestMessages);
+    };
+
+    function handleStreamEvent(event: StreamEvent) {
+      switch (event.type) {
+        case "system": {
+          if (event.subtype === "init") {
+            addLog("info", "system", `Session init: model=${event.model}`);
+          } else {
+            addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
+          }
+          break;
+        }
+
+        case "assistant": {
+          // Complete assistant message — extract text content
+          const msg = event.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+          const text = msg?.content
+            ?.filter((b) => b.type === "text")
+            .map((b) => b.text ?? "")
+            .join("") ?? "";
+          if (text) {
+            setContent(text);
+          }
+          break;
+        }
+
+        case "stream_event": {
+          // Partial streaming token — append to content buffer
+          const streamEvt = event.event as {
+            type: string;
+            delta?: { type: string; text?: string };
+          } | undefined;
+          if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
+            appendContent(streamEvt.delta.text);
+          }
+          break;
+        }
+
+        case "result": {
+          if (event.session_id) {
+            setClaudeSessionId(sessionId!, event.session_id as string);
+          }
+          const costUsd = (event.total_cost_usd ?? event.cost_usd) as number | undefined;
+          const durationMs = (event.duration_ms ?? (Date.now() - now)) as number;
+
+          // If result contains final text, use it
+          if (typeof event.result === "string" && event.result) {
+            setContent(event.result);
+          }
+
+          finalizeMessage(costUsd, durationMs);
+          addLog("info", "process", `Result: session=${event.session_id || "none"}, cost=$${costUsd ?? "?"}, duration=${durationMs}ms`);
+          break;
+        }
+
+        case "rate_limit_event":
+          addLog("warn", "system", `Rate limit: ${JSON.stringify(event.rate_limit_info)}`);
+          break;
+
+        default:
+          addLog("debug", "stream", `Event: ${event.type}/${event.subtype ?? ""}`);
+      }
+    }
+
     try {
       const currentSession = sessions.find((s) => s.id === sessionId);
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
-      const baseArgs = ["-p", trimmed, "--output-format", "json", "--model", model];
+      const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--model", model];
       const args = claudeSessionId
         ? [...baseArgs, "--resume", claudeSessionId]
         : baseArgs;
 
-      addLog("info", "app", `Executing: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
+      addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
 
       const command = Command.create("claude", args, cwd ? { cwd } : undefined);
-      const result = await command.execute();
 
-      addLog("info", "process", `Process exited: code=${result.code}, stdout=${result.stdout.length} chars, stderr=${result.stderr.length} chars`);
-
-      if (result.stderr) {
-        addLog("error", "stderr", result.stderr.slice(0, 500));
-      }
-
-      if (result.code === 0 && result.stdout) {
+      // Wire up event handlers before spawn
+      command.stdout.on("data", (line: string) => {
+        if (!line.trim()) return;
         try {
-          const response = JSON.parse(result.stdout);
-          addLog("debug", "stdout", `Response type: ${response.type}, subtype: ${response.subtype}`);
-
-          if (response.type === "result" && response.result) {
-            updateContent(response.result);
-
-            if (response.session_id) {
-              setClaudeSessionId(sessionId!, response.session_id);
-            }
-            const costUsd = response.cost_usd ?? response.total_cost_usd;
-            const durationMs = response.duration_ms ?? (Date.now() - now);
-            latestMessages = latestMessages.map((m) =>
-              m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
-            );
-            updateMessages(sessionId!, latestMessages);
-
-            addLog("info", "process", `Result: session=${response.session_id || "none"}, cost=$${costUsd ?? "?"}, duration=${durationMs}ms`);
-          } else {
-            const responseText = response.result || response.content || result.stdout;
-            updateContent(typeof responseText === "string" ? responseText : JSON.stringify(responseText));
-          }
+          const event: StreamEvent = JSON.parse(line);
+          handleStreamEvent(event);
         } catch {
-          addLog("warn", "stdout", `Non-JSON response, using as plain text: ${result.stdout.slice(0, 100)}`);
-          updateContent(result.stdout);
+          addLog("warn", "stdout", `Non-JSON line: ${line.slice(0, 200)}`);
         }
-      } else if (result.stderr) {
-        updateContent(`**Error from Claude CLI:**\n\n\`\`\`\n${result.stderr}\n\`\`\``);
-        setDebugVisible(true);
-      } else if (result.code !== 0) {
-        updateContent(`**Process exited with code ${result.code}**\n\nCheck the debug console for details.`);
-      }
+      });
 
-      setIsStreaming(false);
+      command.stderr.on("data", (line: string) => {
+        addLog("error", "stderr", line);
+      });
+
+      command.on("close", (payload) => {
+        childRef.current = null;
+        addLog("info", "process", `Process exited: code=${payload.code}, signal=${payload.signal ?? "none"}`);
+
+        // If non-zero exit without a result event, show error
+        if (payload.code !== 0 && !contentBuffer) {
+          const errorContent = payload.signal
+            ? `**Process killed** (signal: ${payload.signal})`
+            : `**Process exited with code ${payload.code}**\n\nCheck the debug console for details.`;
+          setContent(errorContent);
+          setDebugVisible(true);
+        }
+
+        setIsStreaming(false);
+      });
+
+      command.on("error", (error: string) => {
+        addLog("error", "process", `Process error: ${error}`);
+        setContent(`**Process error:**\n\n\`\`\`\n${error}\n\`\`\``);
+        setIsStreaming(false);
+        setDebugVisible(true);
+      });
+
+      // Spawn the process
+      const child = await command.spawn();
+      childRef.current = child;
+
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       addLog("error", "app", `Failed to spawn claude: ${errMsg}`);
-      updateMessages(sessionId!, latestMessages.map((m) =>
+      latestMessages = latestMessages.map((m) =>
         m.id === assistantMsg.id
           ? { ...m, content: `**Failed to start Claude:**\n\n\`\`\`\n${errMsg}\n\`\`\`\n\nCheck the debug console for details.` }
           : m
-      ));
+      );
+      updateMessages(sessionId!, latestMessages);
       setIsStreaming(false);
       setDebugVisible(true);
     }
