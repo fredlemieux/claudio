@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Build installers for each platform
+  # ──────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            label: macOS-x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            label: Linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ──
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm tsc --noEmit
+
+      # ── Rust ──
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-release-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-release-${{ matrix.target }}-
+
+      # ── Build Tauri ──
+      - name: Build Tauri app
+        run: pnpm tauri build --target ${{ matrix.target }}
+
+      # ── Collect artifacts ──
+      - name: Collect artifacts (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p artifacts
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg artifacts/ 2>/dev/null || true
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz artifacts/ 2>/dev/null || true
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig artifacts/ 2>/dev/null || true
+
+      - name: Collect artifacts (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p artifacts
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.tar.gz artifacts/ 2>/dev/null || true
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.tar.gz.sig artifacts/ 2>/dev/null || true
+
+      - name: Collect artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi" artifacts/ -ErrorAction SilentlyContinue
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe" artifacts/ -ErrorAction SilentlyContinue
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.nsis.zip" artifacts/ -ErrorAction SilentlyContinue
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.nsis.zip.sig" artifacts/ -ErrorAction SilentlyContinue
+
+      # ── SHA256 checksums ──
+      - name: Generate checksums (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd artifacts
+          for f in *; do
+            shasum -a 256 "$f" >> SHA256SUMS.txt
+          done
+          cat SHA256SUMS.txt
+
+      - name: Generate checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd artifacts
+          Get-ChildItem -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -Append SHA256SUMS.txt -Encoding utf8
+          }
+          Get-Content SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: claudio-${{ matrix.label }}
+          path: artifacts/*
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # Create GitHub Release with all artifacts
+  # ──────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release-assets
+          find all-artifacts -type f -exec cp {} release-assets/ \;
+
+          # Merge all SHA256SUMS into one
+          cat release-assets/SHA256SUMS.txt | sort > release-assets/SHA256SUMS-merged.txt
+          mv release-assets/SHA256SUMS-merged.txt release-assets/SHA256SUMS.txt
+
+          echo "=== Release assets ==="
+          ls -la release-assets/
+          echo ""
+          echo "=== Checksums ==="
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: release-assets/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
