@@ -159,10 +159,12 @@ export function useClaude({
         case "assistant": {
           // Complete assistant message — extract text content
           const msg = event.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+          addLog("debug", "stream", `assistant event: message content blocks=${msg?.content?.length ?? 0}`);
           const text = msg?.content
             ?.filter((b) => b.type === "text")
             .map((b) => b.text ?? "")
             .join("") ?? "";
+          addLog("debug", "stream", `assistant text extracted: ${text.length} chars, first 100: ${text.slice(0, 100)}`);
           if (text) {
             setContent(text);
           }
@@ -177,11 +179,18 @@ export function useClaude({
           } | undefined;
           if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
             appendContent(streamEvt.delta.text);
+            // Log every 20th token to avoid flooding
+            if (contentBuffer.length % 200 < 10) {
+              addLog("debug", "stream", `streaming... buffer=${contentBuffer.length} chars`);
+            }
+          } else {
+            addLog("debug", "stream", `stream_event: subtype=${streamEvt?.type}, has delta=${!!streamEvt?.delta}, has text=${!!streamEvt?.delta?.text}`);
           }
           break;
         }
 
         case "result": {
+          addLog("info", "stream", `result event received: subtype=${event.subtype}, session_id=${event.session_id ?? "none"}, has result=${!!event.result}`);
           if (event.session_id) {
             setClaudeSessionId(sessionId!, event.session_id as string);
           }
@@ -190,6 +199,7 @@ export function useClaude({
 
           // If result contains final text, use it
           if (typeof event.result === "string" && event.result) {
+            addLog("debug", "stream", `result text: ${(event.result as string).length} chars`);
             setContent(event.result);
           }
 
@@ -217,49 +227,66 @@ export function useClaude({
         : baseArgs;
 
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
+      addLog("debug", "app", `Session lookup: sessionId=${sessionId}, claudeSessionId=${claudeSessionId ?? "none"}, cwd=${cwd ?? "none"}`);
 
       const command = Command.create("claude", args, cwd ? { cwd } : undefined);
+      addLog("debug", "app", `Command created, wiring event handlers...`);
+
+      let stdoutLineCount = 0;
+      let stderrLineCount = 0;
 
       // Wire up event handlers before spawn
       command.stdout.on("data", (line: string) => {
-        if (!line.trim()) return;
+        stdoutLineCount++;
+        addLog("debug", "stdout", `[line ${stdoutLineCount}] raw (${line.length} chars): ${line.slice(0, 300)}`);
+        if (!line.trim()) {
+          addLog("debug", "stdout", `[line ${stdoutLineCount}] skipped (empty/whitespace)`);
+          return;
+        }
         try {
           const event: StreamEvent = JSON.parse(line);
+          addLog("debug", "stdout", `[line ${stdoutLineCount}] parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
           handleStreamEvent(event);
-        } catch {
-          addLog("warn", "stdout", `Non-JSON line: ${line.slice(0, 200)}`);
+        } catch (parseErr) {
+          addLog("warn", "stdout", `[line ${stdoutLineCount}] JSON parse FAILED: ${parseErr}. Raw: ${line.slice(0, 300)}`);
         }
       });
 
       command.stderr.on("data", (line: string) => {
-        addLog("error", "stderr", line);
+        stderrLineCount++;
+        addLog("error", "stderr", `[line ${stderrLineCount}] ${line}`);
       });
 
       command.on("close", (payload) => {
+        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutLines=${stdoutLineCount}, stderrLines=${stderrLineCount}, contentBuffer=${contentBuffer.length} chars`);
         childRef.current = null;
-        addLog("info", "process", `Process exited: code=${payload.code}, signal=${payload.signal ?? "none"}`);
 
         // If non-zero exit without a result event, show error
         if (payload.code !== 0 && !contentBuffer) {
+          addLog("warn", "process", `Non-zero exit with empty content buffer — showing error to user`);
           const errorContent = payload.signal
             ? `**Process killed** (signal: ${payload.signal})`
             : `**Process exited with code ${payload.code}**\n\nCheck the debug console for details.`;
           setContent(errorContent);
           setDebugVisible(true);
+        } else if (payload.code === 0 && !contentBuffer) {
+          addLog("warn", "process", `Exit code 0 but content buffer is EMPTY — no content was streamed`);
         }
 
         setIsStreaming(false);
       });
 
       command.on("error", (error: string) => {
-        addLog("error", "process", `Process error: ${error}`);
+        addLog("error", "process", `Process ERROR event: ${error}`);
         setContent(`**Process error:**\n\n\`\`\`\n${error}\n\`\`\``);
         setIsStreaming(false);
         setDebugVisible(true);
       });
 
       // Spawn the process
+      addLog("debug", "app", `Calling command.spawn()...`);
       const child = await command.spawn();
+      addLog("info", "app", `Spawn succeeded, child pid=${child.pid}`);
       childRef.current = child;
 
     } catch (err) {
