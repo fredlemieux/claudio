@@ -1,4 +1,4 @@
-> 🧭 **Navigate:** [[PAI/PAI|PAI Home]] · [[PAI GUI Architecture]] · [[PAI GUI Wireframes]] · [[PAI GUI Build Plan]] · [[PAI GUI Event Model]]
+> 🧭 **Navigate:** [[01-Architecture]] · [[02-Build-Plan]] · [[03-Wireframes]] · [[04-Event-Model]] · [[05-Component-Guidelines]]
 
 # Claudio
 
@@ -8,12 +8,24 @@
 
 | What | State |
 |------|-------|
-| Phase | **Design complete** — architecture + wireframes done |
-| Next | Fred reviews, then multi-agent build |
-| PRD | `~/.claude/MEMORY/WORK/pai-gui-design/PRD-20260402-pai-gui.md` |
+| Phase | **M4: Agent Drawer** — wiring agent stream detection |
+| M1: Hello World | **COMPLETE** — chat works, streamed responses |
+| M2: Chat Polish | **COMPLETE** — markdown, syntax highlight, sessions |
+| M3: Slash Commands | **COMPLETE** — autocomplete, Cmd+K palette, dynamic skills |
+| M4: Agent Drawer | **IN PROGRESS** — UI built, needs stream wiring |
+| M5: Algorithm Viz | **PARTIAL** — ISC panel in sidebar, AlgorithmTracker built |
+| M6: Full PAI | Planned |
 | Repo | [github.com/fredlemieux/claudio](https://github.com/fredlemieux/claudio) |
 | Local | `~/dev/claudio/` |
 | Name | **Claudio** — Claude + audio + Roman Emperor |
+
+## Implementation Notes
+
+- **Streaming:** Tauri 2 shell plugin `spawn()` + `--output-format stream-json --verbose`
+- **Session storage:** Per-session localStorage keys (index + `claudio-msg-{id}`)
+- **Skills:** Scanned from `~/.claude/skills/*/SKILL.md` via bash+jq (no stale index file)
+- **ISC detection:** Parsed from streamed text (regex) + TodoWrite tool_use events (structured)
+- **Storybook:** Configured with stories for all major components
 
 ## The Problem
 

@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { SkillPalette } from "./components/SkillPalette";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { AlgorithmTracker } from "./components/AlgorithmTracker";
+import { ISCPanel } from "./components/ISCPanel";
 import { DebugConsole } from "./components/DebugConsole";
 import { SettingsPanel, useSettings } from "./components/SettingsPanel";
 import { useSkills } from "./hooks/useSkills";
@@ -29,6 +30,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [algoVisible, setAlgoVisible] = useState(false);
+  const [iscVisible, setIscVisible] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = activeSession?.messages || [];
@@ -110,6 +112,37 @@ function App() {
       {/* Toolbar row — toggle buttons above InputBar, right-aligned.
           The Algo button is wrapped in `relative` so the popover can anchor to it. */}
       <div className={`flex items-center justify-end px-4 py-1 gap-1 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+        <div className="relative">
+          {/* ISC popover — floats above this button, right-aligned */}
+          {iscVisible && (
+            <div className="absolute bottom-full right-0 mb-1 z-50 w-80 bg-surface-1 border border-border rounded-lg shadow-xl overflow-hidden">
+              <ISCPanel criteria={claude.algoCriteria} />
+              {claude.algoCriteria.length === 0 && (
+                <div className="px-3 py-4 text-center text-text-tertiary text-xs">No criteria yet</div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => setIscVisible((v) => !v)}
+            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors ${
+              iscVisible ? "text-text-primary" : "text-text-tertiary hover:text-text-interactive"
+            }`}
+            title="Toggle ISC panel"
+          >
+            <span className="text-sm">🎯</span>
+            <span>ISC</span>
+            {claude.algoCriteria.length > 0 && (
+              <span className={`text-[10px] px-1 rounded-full min-w-[16px] text-center ${
+                claude.algoCriteria.filter((c) => c.status === "completed").length === claude.algoCriteria.length
+                  ? "bg-green-700 text-green-200"
+                  : "bg-surface-2 text-text-secondary"
+              }`}>
+                {claude.algoCriteria.filter((c) => c.status === "completed").length}/{claude.algoCriteria.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="relative">
           {/* Algorithm popover — floats above this button, right-aligned */}
           {algoVisible && (

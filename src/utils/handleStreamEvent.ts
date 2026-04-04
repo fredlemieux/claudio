@@ -1,6 +1,7 @@
 import type {LogEntry} from "../components/DebugConsole.tsx";
 import type {StreamStep} from "../types.ts";
 import type {ISCriterion} from "../components/AlgorithmTracker";
+import type {AgentInfo} from "../components/AgentDrawer";
 
 export interface StreamEvent {
   type: string;
@@ -28,6 +29,8 @@ export interface StreamEventCallbacks {
   startTime: number;
   /** Called when a TodoWrite tool_use block contains ISC- prefixed todos */
   onISCCriteria?: (criteria: ISCriterion[]) => void;
+  /** Called when an Agent/Task tool_use is detected — tracks agent lifecycle */
+  onAgentUpdate?: (agent: AgentInfo) => void;
 }
 
 /**
@@ -90,7 +93,7 @@ export function handleStreamEvent(
           }
           eventCallbacks.addStep({
             id: crypto.randomUUID(), type: "text", timestamp: Date.now(),
-            summary: block.text,
+            summary: block.text.slice(0, 300) + (block.text.length > 300 ? "…" : ""),
             rawJson: rawJsonStr,
           });
         } else if (block.type === "tool_use") {
@@ -122,6 +125,57 @@ export function handleStreamEvent(
               eventCallbacks.onISCCriteria(criteria);
             }
           }
+          // Extract ISC criteria from TaskCreate (Claude Code's native task system)
+          if (block.name === "TaskCreate" && eventCallbacks.onISCCriteria && block.input) {
+            const content = (block.input as { content?: string; status?: string }).content ?? "";
+            if (content.match(/^ISC-/i)) {
+              const colonIdx = content.indexOf(":");
+              const id = colonIdx > -1 ? content.slice(0, colonIdx).trim() : content.trim();
+              const description = colonIdx > -1 ? content.slice(colonIdx + 1).trim() : content.trim();
+              const rawStatus = (block.input as { status?: string }).status ?? "pending";
+              const statusMap: Record<string, ISCriterion["status"]> = {
+                completed: "completed", in_progress: "in_progress",
+                pending: "pending", failed: "failed",
+              };
+              const criterion: ISCriterion = { id, description, status: statusMap[rawStatus] ?? "pending" };
+              eventCallbacks.addLog("debug", "app", `[ISC] TaskCreate → ${id}: ${description}`);
+              eventCallbacks.onISCCriteria([criterion]);
+            }
+          }
+          // Detect agent spawns — "Agent" tool_use blocks contain description, subagent_type, prompt
+          if (block.name === "Agent" && eventCallbacks.onAgentUpdate && block.input) {
+            const input = block.input as { description?: string; subagent_type?: string; prompt?: string; run_in_background?: boolean };
+            const agent: AgentInfo = {
+              id: block.id ?? crypto.randomUUID(),
+              name: input.description ?? "Agent",
+              type: input.subagent_type ?? "general-purpose",
+              status: "running",
+              description: (input.prompt ?? "").slice(0, 200),
+              output: "",
+              startedAt: Date.now(),
+            };
+            eventCallbacks.addLog("info", "app", `[Agent] Spawned: ${agent.name} (${agent.type})`);
+            eventCallbacks.onAgentUpdate(agent);
+          }
+
+          // Update ISC criteria status from TaskUpdate
+          if (block.name === "TaskUpdate" && eventCallbacks.onISCCriteria && block.input) {
+            const input = block.input as { content?: string; status?: string };
+            const content = input.content ?? "";
+            if (content.match(/^ISC-/i)) {
+              const colonIdx = content.indexOf(":");
+              const id = colonIdx > -1 ? content.slice(0, colonIdx).trim() : content.trim();
+              const description = colonIdx > -1 ? content.slice(colonIdx + 1).trim() : content.trim();
+              const rawStatus = input.status ?? "pending";
+              const statusMap: Record<string, ISCriterion["status"]> = {
+                completed: "completed", in_progress: "in_progress",
+                pending: "pending", failed: "failed",
+              };
+              const criterion: ISCriterion = { id, description, status: statusMap[rawStatus] ?? "pending" };
+              eventCallbacks.addLog("debug", "app", `[ISC] TaskUpdate → ${id}: ${rawStatus}`);
+              eventCallbacks.onISCCriteria([criterion]);
+            }
+          }
         }
       }
       break;
@@ -146,6 +200,18 @@ export function handleStreamEvent(
             summary: result.is_error ? `ERROR: ${preview}` : preview,
             rawJson: rawJsonStr,
           });
+          // Update agent status when its tool_result arrives
+          if (result.tool_use_id && eventCallbacks.onAgentUpdate) {
+            eventCallbacks.onAgentUpdate({
+              id: result.tool_use_id,
+              name: "",  // useClaude merges by id, keeping existing name
+              type: "",
+              status: result.is_error ? "failed" : "completed",
+              description: "",
+              output: (result.content ?? "").slice(0, 500),
+              startedAt: 0,
+            });
+          }
         }
       }
       eventCallbacks.addLog("debug", "stream", `user event: ${results.length} results`);

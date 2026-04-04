@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {Command} from "@tauri-apps/plugin-shell";
 import {
   type AlgorithmPhase,
@@ -12,6 +12,19 @@ import type {Message, StreamStep} from "../types";
 import type {Session} from "./useSessions";
 import type {ClaudeModel} from "../components/SettingsPanel";
 import {handleStreamEvent, type StreamEvent, type StreamEventCallbacks} from "../utils/handleStreamEvent";
+
+const ISC_PREFIX = "claudio-isc-";
+
+function loadISC(sessionId: string): ISCriterion[] {
+  try {
+    const stored = localStorage.getItem(ISC_PREFIX + sessionId);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function saveISC(sessionId: string, criteria: ISCriterion[]) {
+  localStorage.setItem(ISC_PREFIX + sessionId, JSON.stringify(criteria));
+}
 
 // Minimal interface for the Tauri Child object — only what useClaude actually uses.
 interface SpawnedChild {
@@ -110,11 +123,23 @@ export function useClaude({
   const [isStreaming, setIsStreaming] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [algoPhases, setAlgoPhases] = useState<AlgorithmPhase[]>([]);
-  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>([]);
+  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>(() =>
+    activeSessionId ? loadISC(activeSessionId) : []
+  );
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [debugLogs, setDebugLogs] = useState<LogEntry[]>([]);
   const [debugVisible, setDebugVisible] = useState(false);
   const childRef = useRef<SpawnedChild | null>(null);
+
+  // Load persisted criteria when session changes
+  useEffect(() => {
+    setAlgoCriteria(activeSessionId ? loadISC(activeSessionId) : []);
+  }, [activeSessionId]);
+
+  // Persist criteria whenever they change
+  useEffect(() => {
+    if (activeSessionId) saveISC(activeSessionId, algoCriteria);
+  }, [activeSessionId, algoCriteria]);
 
   const addLog = useCallback((level: LogEntry["level"], source: LogEntry["source"], message: string) => {
     setDebugLogs((prev) => [
@@ -209,7 +234,31 @@ export function useClaude({
       onSessionId: (claudeSessionId) => setClaudeSessionId(sessionId!, claudeSessionId),
       getBuffer: buf.getContent,
       startTime: now,
-      onISCCriteria: (criteria) => setAlgoCriteria(criteria),
+      onISCCriteria: (newCriteria) => setAlgoCriteria((prev) => {
+        const merged = [...prev];
+        for (const c of newCriteria) {
+          const idx = merged.findIndex((e) => e.id === c.id);
+          if (idx >= 0) merged[idx] = c;
+          else merged.push(c);
+        }
+        return merged;
+      }),
+      onAgentUpdate: (agent) => setAgents((prev) => {
+        const idx = prev.findIndex((a) => a.id === agent.id);
+        if (idx >= 0) {
+          // Merge — keep existing fields, update status/output
+          const existing = prev[idx];
+          const updated = [...prev];
+          updated[idx] = {
+            ...existing,
+            status: agent.status,
+            output: agent.output || existing.output,
+          };
+          return updated;
+        }
+        // New agent
+        return [...prev, agent];
+      }),
     };
 
     try {

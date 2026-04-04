@@ -12,12 +12,12 @@ The noise (Algorithm phases, ISC panels, agent drawers, thinking visualisation) 
 
 | Milestone | What | Definition of Done |
 |-----------|------|-------------------|
-| **M1: Hello World** | Tauri app opens, sends message via SDK, streams response | Can chat with Claude Code through the GUI |
-| **M2: Chat Polish** | Markdown rendering, syntax highlighting, message history | Feels like ChatGPT — clean, fast, pretty |
-| **M3: Slash Commands** | `/` autocomplete, skill invocation, `⌘K` palette | Can invoke any PAI skill from GUI |
-| **M4: Agent Drawer** | Background agent visibility, expandable output, progress | Can "dive into" agents without clogging chat |
-| **M5: Algorithm Viz** | Phase tracker, ISC panel, collapsible phase cards | Can optionally see the Algorithm working |
-| **M6: Full PAI** | Voice controls, PRD viewer, settings, session persistence | Feature parity with CLI experience |
+| **M1: Hello World** | Tauri app opens, sends message via SDK, streams response | ✅ **COMPLETE** |
+| **M2: Chat Polish** | Markdown rendering, syntax highlighting, message history | ✅ **COMPLETE** |
+| **M3: Slash Commands** | `/` autocomplete, skill invocation, `⌘K` palette | ✅ **COMPLETE** |
+| **M4: Agent Drawer** | Background agent visibility, expandable output, progress | 🔨 **IN PROGRESS** |
+| **M5: Algorithm Viz** | Phase tracker, ISC panel, collapsible phase cards | 🟡 **PARTIAL** |
+| **M6: Full PAI** | Voice controls, PRD viewer, settings, session persistence | ⬚ Planned |
 
 **Key insight:** M4 (Agent Drawer) is the feature that makes this better than Opcode. M5 (Algorithm Viz) is nice-to-have noise that should be **opt-in, hidden by default**. Iterate toward showing complexity, not starting with it.
 

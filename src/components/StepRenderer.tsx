@@ -71,7 +71,7 @@ function StepItem({ step }: { step: StreamStep }) {
           onClick={() => setExpanded(!expanded)}
           className="text-left text-text-secondary hover:text-text-primary transition-colors w-full"
         >
-          <span className={expanded ? "" : "line-clamp-2"}>
+          <span className={expanded ? "whitespace-pre-wrap" : "line-clamp-2 overflow-hidden"}>
             {step.summary}
           </span>
         </button>
