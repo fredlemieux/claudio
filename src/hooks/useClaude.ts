@@ -1,12 +1,16 @@
-import { useState, useRef, useCallback } from "react";
-import { Command, type Child } from "@tauri-apps/plugin-shell";
-import { parseAlgorithmState, type AlgorithmPhase, type ISCriterion } from "../components/AlgorithmTracker";
-import type { AgentInfo } from "../components/AgentDrawer";
-import type { ToolCall } from "../components/ToolUseIndicator";
-import type { LogEntry } from "../components/DebugConsole";
-import type { Message, StreamStep } from "../types";
-import type { Session } from "./useSessions";
-import type { ClaudeModel } from "../components/SettingsPanel";
+import {useCallback, useRef, useState} from "react";
+import {type Child, Command} from "@tauri-apps/plugin-shell";
+import {
+  type AlgorithmPhase,
+  type ISCriterion,
+  parseAlgorithmState
+} from "../components/AlgorithmTracker";
+import type {AgentInfo} from "../components/AgentDrawer";
+import type {ToolCall} from "../components/ToolUseIndicator";
+import type {LogEntry} from "../components/DebugConsole";
+import type {Message, StreamStep} from "../types";
+import type {Session} from "./useSessions";
+import type {ClaudeModel} from "../components/SettingsPanel";
 
 export interface UseClaudeOptions {
   sessions: Session[];
@@ -23,6 +27,161 @@ interface StreamEvent {
   subtype?: string;
   session_id?: string;
   [key: string]: unknown;
+}
+
+/**
+ * All side-effects that handleStreamEvent can produce, passed in as callbacks.
+ * This decouples the event-parsing logic from React state and Tauri entirely —
+ * making handleStreamEvent a pure function that's easy to unit test.
+ */
+export interface StreamEventCallbacks {
+  addLog: (level: LogEntry["level"], source: LogEntry["source"], message: string) => void;
+  addStep: (step: StreamStep) => void;
+  appendContent: (delta: string) => void;
+  setContent: (fullContent: string) => void;
+  finalizeMessage: (costUsd?: number, durationMs?: number) => void;
+  /** Called when the result event carries a session_id to persist for --resume */
+  onSessionId: (claudeSessionId: string) => void;
+  /** Returns the current accumulated content — used for multi-turn dedup logic */
+  getBuffer: () => string;
+  /** When sendMessage started — used as duration fallback if result event omits it */
+  startTime: number;
+}
+
+/**
+ * Pure function: handles a single stream event from Claude's --stream-json output.
+ *
+ * No React, no Tauri, no closures — all side-effects flow through `cb`.
+ * Testable by passing synthetic events and asserting which callbacks fire.
+ */
+export function handleStreamEvent(
+  event: StreamEvent,
+  rawJsonStr: string,
+  cb: StreamEventCallbacks,
+): void {
+  switch (event.type) {
+    case "system": {
+      if (event.subtype === "init") {
+        cb.addLog("info", "system", `Session init: model=${event.model}`);
+        cb.addStep({
+          id: crypto.randomUUID(), type: "system", timestamp: Date.now(),
+          summary: `Session init — model: ${event.model}`,
+          rawJson: rawJsonStr,
+        });
+      } else {
+        cb.addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
+      }
+      break;
+    }
+
+    case "assistant": {
+      const msg = event.message as {
+        content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
+      } | undefined;
+      const blocks = msg?.content ?? [];
+      cb.addLog("debug", "stream", `assistant event: ${blocks.length} blocks`);
+
+      for (const block of blocks) {
+        if (block.type === "thinking" && block.thinking) {
+          cb.addStep({
+            id: crypto.randomUUID(), type: "thinking", timestamp: Date.now(),
+            summary: block.thinking.slice(0, 300) + (block.thinking.length > 300 ? "…" : ""),
+            rawJson: rawJsonStr,
+          });
+        } else if (block.type === "text" && block.text) {
+          cb.addLog("debug", "stream", `text: ${block.text.length} chars`);
+          // Append with separator — multi-turn responses produce multiple assistant events,
+          // each with the complete text for that turn. stream_event deltas already built
+          // the content for this turn, so skip if the buffer already ends with this text.
+          const buffer = cb.getBuffer();
+          if (buffer && !buffer.endsWith(block.text)) {
+            cb.appendContent("\n\n" + block.text);
+          } else if (!buffer) {
+            cb.setContent(block.text);
+          }
+          cb.addStep({
+            id: crypto.randomUUID(), type: "text", timestamp: Date.now(),
+            summary: block.text,
+            rawJson: rawJsonStr,
+          });
+        } else if (block.type === "tool_use") {
+          const inputStr = block.input ? JSON.stringify(block.input) : "";
+          const inputPreview = inputStr.slice(0, 200) + (inputStr.length > 200 ? "…" : "");
+          cb.addStep({
+            id: crypto.randomUUID(), type: "tool_use", timestamp: Date.now(),
+            toolName: block.name,
+            summary: `${block.name}(${inputPreview})`,
+            rawJson: rawJsonStr,
+          });
+        }
+      }
+      break;
+    }
+
+    case "user": {
+      // Tool results
+      const userMsg = event.message as {
+        content?: Array<{ type: string; content?: string; tool_use_id?: string; is_error?: boolean }>;
+      } | undefined;
+      const results = userMsg?.content ?? [];
+      for (const result of results) {
+        if (result.type === "tool_result") {
+          const preview = (result.content ?? "").slice(0, 300) + ((result.content?.length ?? 0) > 300 ? "…" : "");
+          cb.addStep({
+            id: crypto.randomUUID(), type: "tool_result", timestamp: Date.now(),
+            summary: result.is_error ? `ERROR: ${preview}` : preview,
+            rawJson: rawJsonStr,
+          });
+        }
+      }
+      cb.addLog("debug", "stream", `user event: ${results.length} results`);
+      break;
+    }
+
+    case "stream_event": {
+      const streamEvt = event.event as {
+        type: string;
+        delta?: { type: string; text?: string };
+      } | undefined;
+      if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
+        cb.appendContent(streamEvt.delta.text);
+        const bufLen = cb.getBuffer().length;
+        if (bufLen % 200 < 10) {
+          cb.addLog("debug", "stream", `streaming... buffer=${bufLen} chars`);
+        }
+      }
+      break;
+    }
+
+    case "result": {
+      cb.addLog("info", "stream", `result: session=${event.session_id ?? "none"}`);
+      if (event.session_id) {
+        cb.onSessionId(event.session_id as string);
+      }
+      const costUsd = (event.total_cost_usd ?? event.cost_usd) as number | undefined;
+      const durationMs = (event.duration_ms ?? (Date.now() - cb.startTime)) as number;
+
+      if (typeof event.result === "string" && event.result) {
+        cb.setContent(event.result);
+      }
+
+      cb.addStep({
+        id: crypto.randomUUID(), type: "result", timestamp: Date.now(),
+        summary: `Done — ${(durationMs / 1000).toFixed(1)}s, $${costUsd?.toFixed(4) ?? "?"}`,
+        rawJson: rawJsonStr,
+      });
+
+      cb.finalizeMessage(costUsd, durationMs);
+      break;
+    }
+
+    case "rate_limit_event":
+      cb.addLog("warn", "system", `Rate limit: ${JSON.stringify(event.rate_limit_info)}`);
+      break;
+
+    default:
+      cb.addLog("debug", "stream", `Event: ${event.type}/${event.subtype ?? ""}`);
+  }
 }
 
 export function useClaude({
@@ -97,8 +256,7 @@ export function useClaude({
     };
 
     const currentMessages = activeSession?.messages || [];
-    const messagesRef = [...currentMessages, userMsg, assistantMsg];
-    let latestMessages = messagesRef;
+    let latestMessages = [...currentMessages, userMsg, assistantMsg];
     updateMessages(sessionId, latestMessages);
     setIsStreaming(true);
     setToolCalls([]);
@@ -152,134 +310,18 @@ export function useClaude({
       updateMessages(sessionId!, latestMessages);
     };
 
-    function handleStreamEvent(event: StreamEvent, rawJsonStr: string) {
-      switch (event.type) {
-        case "system": {
-          if (event.subtype === "init") {
-            addLog("info", "system", `Session init: model=${event.model}`);
-            addStep({
-              id: crypto.randomUUID(), type: "system", timestamp: Date.now(),
-              summary: `Session init — model: ${event.model}`,
-              rawJson: rawJsonStr,
-            });
-          } else {
-            addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
-          }
-          break;
-        }
-
-        case "assistant": {
-          const msg = event.message as {
-            content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
-          } | undefined;
-          const blocks = msg?.content ?? [];
-          addLog("debug", "stream", `assistant event: ${blocks.length} blocks`);
-
-          for (const block of blocks) {
-            if (block.type === "thinking" && block.thinking) {
-              addStep({
-                id: crypto.randomUUID(), type: "thinking", timestamp: Date.now(),
-                summary: block.thinking.slice(0, 300) + (block.thinking.length > 300 ? "…" : ""),
-                rawJson: rawJsonStr,
-              });
-            } else if (block.type === "text" && block.text) {
-              addLog("debug", "stream", `text: ${block.text.length} chars`);
-              // Append with separator — multi-turn responses produce multiple
-              // assistant events, each with complete text for that turn.
-              // stream_event deltas already built the content for this turn,
-              // so replace with the complete text from this assistant event,
-              // preserving any content from prior turns.
-              if (contentBuffer && !contentBuffer.endsWith(block.text)) {
-                // Prior content exists and this is new text — append
-                appendContent("\n\n" + block.text);
-              } else if (!contentBuffer) {
-                setContent(block.text);
-              }
-              // If contentBuffer already ends with this text (from stream_event
-              // deltas), skip — the deltas already wrote it.
-              addStep({
-                id: crypto.randomUUID(), type: "text", timestamp: Date.now(),
-                summary: block.text,
-                rawJson: rawJsonStr,
-              });
-            } else if (block.type === "tool_use") {
-              const inputStr = block.input ? JSON.stringify(block.input) : "";
-              const inputPreview = inputStr.slice(0, 200) + (inputStr.length > 200 ? "…" : "");
-              addStep({
-                id: crypto.randomUUID(), type: "tool_use", timestamp: Date.now(),
-                toolName: block.name,
-                summary: `${block.name}(${inputPreview})`,
-                rawJson: rawJsonStr,
-              });
-            }
-          }
-          break;
-        }
-
-        case "user": {
-          // Tool results
-          const userMsg = event.message as {
-            content?: Array<{ type: string; content?: string; tool_use_id?: string; is_error?: boolean }>;
-          } | undefined;
-          const results = userMsg?.content ?? [];
-          for (const result of results) {
-            if (result.type === "tool_result") {
-              const preview = (result.content ?? "").slice(0, 300) + ((result.content?.length ?? 0) > 300 ? "…" : "");
-              addStep({
-                id: crypto.randomUUID(), type: "tool_result", timestamp: Date.now(),
-                summary: result.is_error ? `ERROR: ${preview}` : preview,
-                rawJson: rawJsonStr,
-              });
-            }
-          }
-          addLog("debug", "stream", `user event: ${results.length} results`);
-          break;
-        }
-
-        case "stream_event": {
-          const streamEvt = event.event as {
-            type: string;
-            delta?: { type: string; text?: string };
-          } | undefined;
-          if (streamEvt?.type === "content_block_delta" && streamEvt.delta?.text) {
-            appendContent(streamEvt.delta.text);
-            if (contentBuffer.length % 200 < 10) {
-              addLog("debug", "stream", `streaming... buffer=${contentBuffer.length} chars`);
-            }
-          }
-          break;
-        }
-
-        case "result": {
-          addLog("info", "stream", `result: session=${event.session_id ?? "none"}`);
-          if (event.session_id) {
-            setClaudeSessionId(sessionId!, event.session_id as string);
-          }
-          const costUsd = (event.total_cost_usd ?? event.cost_usd) as number | undefined;
-          const durationMs = (event.duration_ms ?? (Date.now() - now)) as number;
-
-          if (typeof event.result === "string" && event.result) {
-            setContent(event.result);
-          }
-
-          addStep({
-            id: crypto.randomUUID(), type: "result", timestamp: Date.now(),
-            summary: `Done — ${((durationMs) / 1000).toFixed(1)}s, $${costUsd?.toFixed(4) ?? "?"}`,
-            rawJson: rawJsonStr,
-          });
-
-          finalizeMessage(costUsd, durationMs);
-          break;
-        }
-
-        case "rate_limit_event":
-          addLog("warn", "system", `Rate limit: ${JSON.stringify(event.rate_limit_info)}`);
-          break;
-
-        default:
-          addLog("debug", "stream", `Event: ${event.type}/${event.subtype ?? ""}`);
-      }
-    }
+    // Wire up the callbacks that connect the pure handleStreamEvent function
+    // to this message send's local state (contentBuffer, latestMessages, etc.)
+    const streamCallbacks: StreamEventCallbacks = {
+      addLog,
+      addStep,
+      appendContent,
+      setContent,
+      finalizeMessage,
+      onSessionId: (claudeSessionId) => setClaudeSessionId(sessionId!, claudeSessionId),
+      getBuffer: () => contentBuffer,
+      startTime: now,
+    };
 
     try {
       const currentSession = sessions.find((s) => s.id === sessionId);
@@ -338,7 +380,7 @@ export function useClaude({
           try {
             const event: StreamEvent = JSON.parse(trimmed);
             addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
-            handleStreamEvent(event, trimmed);
+            handleStreamEvent(event, trimmed, streamCallbacks);
           } catch (parseErr) {
             addLog("warn", "stdout", `JSON parse FAILED: ${parseErr}. Raw: ${trimmed.slice(0, 300)}`);
           }
@@ -360,7 +402,7 @@ export function useClaude({
           try {
             const trimmedLine = lineBuffer.trim();
             const event: StreamEvent = JSON.parse(trimmedLine);
-            handleStreamEvent(event, trimmedLine);
+            handleStreamEvent(event, trimmedLine, streamCallbacks);
           } catch {
             addLog("warn", "stdout", `Final lineBuffer not valid JSON: ${lineBuffer.slice(0, 200)}`);
           }

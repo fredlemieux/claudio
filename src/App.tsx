@@ -81,6 +81,8 @@ function App() {
         sidebarOpen={sidebarOpen}
         isStreaming={claude.isStreaming}
         model={settings.model}
+        algoPhases={claude.algoPhases}
+        algoCriteria={claude.algoCriteria}
         onToggleSidebar={() => setSidebarOpen((o) => !o)}
         onSelectSession={(id) => { switchSession(id); setSidebarOpen(false); }}
         onNewChat={() => { handleNewChat(); setSidebarOpen(false); }}
