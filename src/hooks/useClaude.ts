@@ -229,7 +229,16 @@ export function useClaude({
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
       addLog("debug", "app", `Session lookup: sessionId=${sessionId}, claudeSessionId=${claudeSessionId ?? "none"}, cwd=${cwd ?? "none"}`);
 
-      const command = Command.create("claude", args, cwd ? { cwd } : undefined);
+      // Strip CLAUDECODE env var to prevent "nested session" detection.
+      // Tauri inherits parent env — if dev server launched from Claude Code terminal,
+      // CLAUDECODE=1 propagates and can cause the child to hang or refuse to start.
+      const spawnOpts: Record<string, unknown> = {
+        ...(cwd ? { cwd } : {}),
+        env: { CLAUDECODE: "" },
+      };
+      addLog("debug", "app", `Spawn options: ${JSON.stringify(spawnOpts)}`);
+
+      const command = Command.create("claude", args, spawnOpts);
       addLog("debug", "app", `Command created, wiring event handlers...`);
 
       let stdoutLineCount = 0;
@@ -288,6 +297,14 @@ export function useClaude({
       const child = await command.spawn();
       addLog("info", "app", `Spawn succeeded, child pid=${child.pid}`);
       childRef.current = child;
+
+      // Timeout warning — if no stdout events after 5s, something is wrong
+      setTimeout(() => {
+        if (stdoutLineCount === 0 && childRef.current) {
+          addLog("warn", "app", `⚠️ No stdout events received after 5s! pid=${child.pid}, stderrLines=${stderrLineCount}. Process may be hung (CLAUDECODE env? auth prompt? API timeout?)`);
+          setDebugVisible(true);
+        }
+      }, 5000);
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
