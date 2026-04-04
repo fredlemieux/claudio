@@ -1,13 +1,9 @@
-import { ISCPanel } from "./ISCPanel";
-import type { AlgorithmPhase, ISCriterion } from "./AlgorithmTracker";
 import type { Session } from "../hooks/useSessions";
 
 interface SessionSidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   isOpen: boolean;
-  algoPhases: AlgorithmPhase[];
-  algoCriteria: ISCriterion[];
   onToggle: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -27,8 +23,6 @@ export function SessionSidebar({
   sessions,
   activeSessionId,
   isOpen,
-  algoPhases,
-  algoCriteria,
   onToggle,
   onSelect,
   onNew,
@@ -122,9 +116,6 @@ export function SessionSidebar({
             ))
           )}
         </div>
-
-        {/* ISC Panel */}
-        <ISCPanel phases={algoPhases} criteria={algoCriteria} />
 
         {/* Footer */}
         <div className="p-3 border-t border-border text-center">

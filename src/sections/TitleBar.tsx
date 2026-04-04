@@ -1,5 +1,4 @@
 import { SessionSidebar } from "../components/SessionSidebar";
-import type { AlgorithmPhase, ISCriterion } from "../components/AlgorithmTracker";
 import type { Session } from "../hooks/useSessions";
 
 interface TitleBarProps {
@@ -9,8 +8,6 @@ interface TitleBarProps {
   sidebarOpen: boolean;
   isStreaming: boolean;
   model: string;
-  algoPhases: AlgorithmPhase[];
-  algoCriteria: ISCriterion[];
   onToggleSidebar: () => void;
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
@@ -27,8 +24,6 @@ export function TitleBar({
   sidebarOpen,
   isStreaming,
   model,
-  algoPhases,
-  algoCriteria,
   onToggleSidebar,
   onSelectSession,
   onNewChat,
@@ -43,8 +38,6 @@ export function TitleBar({
         sessions={sessions}
         activeSessionId={activeSessionId}
         isOpen={sidebarOpen}
-        algoPhases={algoPhases}
-        algoCriteria={algoCriteria}
         onToggle={onToggleSidebar}
         onSelect={onSelectSession}
         onNew={onNewChat}

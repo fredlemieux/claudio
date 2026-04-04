@@ -181,9 +181,12 @@ export function useClaude({
       );
       updateMessages(sessionId!, latestMessages);
       const algoState = parseAlgorithmState(content);
-      if (algoState.phases.some((p) => p.status !== "pending")) {
-        setAlgoPhases(algoState.phases);
-        setAlgoCriteria(algoState.criteria);
+      const hasActivePhases = algoState.phases.some((p) => p.status !== "pending");
+      if (hasActivePhases) setAlgoPhases(algoState.phases);
+      if (algoState.criteria.length > 0) setAlgoCriteria(algoState.criteria);
+      // Debug: log whenever ISC or phases are detected so we can trace parsing
+      if (hasActivePhases || algoState.criteria.length > 0) {
+        addLog("debug", "app", `[ISC] phases=${algoState.phases.filter(p => p.status !== "pending").map(p => p.name).join(",") || "none"} criteria=${algoState.criteria.length} (${algoState.criteria.map(c => c.id).join(",")})`);
       }
     });
 
@@ -206,6 +209,7 @@ export function useClaude({
       onSessionId: (claudeSessionId) => setClaudeSessionId(sessionId!, claudeSessionId),
       getBuffer: buf.getContent,
       startTime: now,
+      onISCCriteria: (criteria) => setAlgoCriteria(criteria),
     };
 
     try {

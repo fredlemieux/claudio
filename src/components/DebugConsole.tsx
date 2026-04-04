@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 export interface LogEntry {
   id: string;
@@ -13,6 +13,8 @@ interface DebugConsoleProps {
   visible: boolean;
   onToggle: () => void;
   onClear: () => void;
+  sidebarOpen: boolean;
+  drawerOpen: boolean;
 }
 
 const LEVEL_COLORS = {
@@ -36,14 +38,26 @@ function formatTime(ts: number): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleProps) {
+export function DebugConsole({ logs, visible, onToggle, onClear, sidebarOpen, drawerOpen }: DebugConsoleProps) {
   const [filter, setFilter] = useState<"all" | "error" | "stderr">("all");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [height, setHeight] = useState(220);
+  const [copied, setCopied] = useState(false);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const handleCopyAll = useCallback(() => {
+    const text = logs
+      .map((l) => `${formatTime(l.timestamp)} ${l.source} [${l.level}] ${l.message}`)
+      .join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [logs]);
 
   const errorCount = logs.filter((l) => l.level === "error").length;
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -57,33 +71,36 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
     return true;
   });
 
-  // Toggle button (always visible)
-  if (!visible) {
-    return (
-      <button
-        onClick={onToggle}
-        className={`fixed right-4 bottom-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-          errorCount > 0
-            ? "bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30"
-            : "bg-surface-2 text-text-secondary border border-border hover:text-text-interactive"
-        }`}
-        title="Toggle debug console"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-          <path fillRule="evenodd" d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-        </svg>
-        <span>Debug</span>
-        {errorCount > 0 && (
-          <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-            {errorCount}
-          </span>
-        )}
-      </button>
-    );
-  }
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = { startY: e.clientY, startHeight: height };
+
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      // Dragging up (lower clientY) = taller panel
+      const delta = dragRef.current.startY - e.clientY;
+      setHeight(Math.max(80, Math.min(600, dragRef.current.startHeight + delta)));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [height]);
+
+  if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-base border-t border-border shadow-2xl">
+    <div className={`bg-base border-t border-border shadow-2xl transition-[margin] ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+      {/* Resize handle — drag up to make taller */}
+      <div
+        className="h-1 cursor-ns-resize bg-border hover:bg-blue-500/60 transition-colors"
+        onMouseDown={handleResizeStart}
+        title="Drag to resize"
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 border-b border-border">
         <div className="flex items-center gap-3">
@@ -94,7 +111,6 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Filter buttons */}
           {(["all", "error", "stderr"] as const).map((f) => (
             <button
               key={f}
@@ -118,6 +134,13 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
             {autoScroll ? "auto" : "manual"}
           </button>
           <button
+            onClick={handleCopyAll}
+            className={`text-[10px] transition-colors ${copied ? "text-green-400" : "text-text-secondary hover:text-text-interactive"}`}
+            title="Copy all logs to clipboard"
+          >
+            {copied ? "copied!" : "copy all"}
+          </button>
+          <button
             onClick={onClear}
             className="text-[10px] text-text-secondary hover:text-text-interactive transition-colors"
           >
@@ -126,9 +149,10 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
           <button
             onClick={onToggle}
             className="text-text-secondary hover:text-text-interactive transition-colors"
+            title="Collapse debug console"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+              <path fillRule="evenodd" d="M4.22 9.78a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1-1.06 1.06L8 7.06 4.78 9.78a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
             </svg>
           </button>
         </div>
@@ -137,7 +161,8 @@ export function DebugConsole({ logs, visible, onToggle, onClear }: DebugConsoleP
       {/* Log entries */}
       <div
         ref={scrollRef}
-        className="h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed"
+        style={{ height: `${height}px` }}
+        className="overflow-y-auto font-mono text-[11px] leading-relaxed"
         onScroll={(e) => {
           const el = e.currentTarget;
           const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;

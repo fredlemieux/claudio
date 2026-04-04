@@ -105,7 +105,7 @@ export function InputBar({
           value={input}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder="Message Claudio... (/ for skills)"
+          placeholder="Message Claudio… (/ for skills)"
           rows={1}
           className="flex-1 bg-transparent text-text-primary text-sm resize-none outline-none placeholder-text-secondary leading-normal"
           style={{ maxHeight: "120px" }}
@@ -130,16 +130,6 @@ export function InputBar({
               <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
             </svg>
           </button>
-        )}
-      </div>
-      <div className="flex items-center justify-between mt-2 px-2">
-        <span className="text-text-tertiary text-xs">
-          Enter to send · Shift+Enter for newline · / for skills · ⌘K search
-        </span>
-        {isStreaming && (
-          <span className="text-red-400 text-xs">
-            Press stop to cancel
-          </span>
         )}
       </div>
     </div>

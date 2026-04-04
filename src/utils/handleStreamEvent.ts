@@ -1,5 +1,6 @@
 import type {LogEntry} from "../components/DebugConsole.tsx";
 import type {StreamStep} from "../types.ts";
+import type {ISCriterion} from "../components/AlgorithmTracker";
 
 export interface StreamEvent {
   type: string;
@@ -25,6 +26,8 @@ export interface StreamEventCallbacks {
   getBuffer: () => string;
   /** When sendMessage started — used as duration fallback if result event omits it */
   startTime: number;
+  /** Called when a TodoWrite tool_use block contains ISC- prefixed todos */
+  onISCCriteria?: (criteria: ISCriterion[]) => void;
 }
 
 /**
@@ -99,6 +102,26 @@ export function handleStreamEvent(
             summary: `${block.name}(${inputPreview})`,
             rawJson: rawJsonStr,
           });
+          // Extract ISC criteria from TodoWrite calls — criteria live in tool calls, not text
+          if (block.name === "TodoWrite" && eventCallbacks.onISCCriteria && block.input) {
+            const todos = (block.input as { todos?: Array<{ content?: string; status?: string }> }).todos ?? [];
+            const criteria: ISCriterion[] = todos
+              .filter((t) => t.content?.match(/^ISC-/i))
+              .map((t) => {
+                const colonIdx = t.content!.indexOf(":");
+                const id = colonIdx > -1 ? t.content!.slice(0, colonIdx).trim() : t.content!.trim();
+                const description = colonIdx > -1 ? t.content!.slice(colonIdx + 1).trim() : "";
+                const statusMap: Record<string, ISCriterion["status"]> = {
+                  completed: "completed", in_progress: "in_progress",
+                  pending: "pending", failed: "failed",
+                };
+                return { id, description, status: statusMap[t.status ?? "pending"] ?? "pending" };
+              });
+            if (criteria.length > 0) {
+              eventCallbacks.addLog("debug", "app", `[ISC] TodoWrite → ${criteria.length} criteria: ${criteria.map(c => c.id).join(", ")}`);
+              eventCallbacks.onISCCriteria(criteria);
+            }
+          }
         }
       }
       break;

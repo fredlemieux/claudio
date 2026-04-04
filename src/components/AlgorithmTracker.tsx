@@ -97,26 +97,11 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
   const [showCriteria, setShowCriteria] = useState(true);
   const displayPhases = phases.length > 0 ? phases : DEFAULT_PHASES;
   const completedCount = criteria.filter((c) => c.status === "completed").length;
-  const activePhase = displayPhases.find((p) => p.status === "active");
 
-  if (!visible) {
-    return (
-      <button
-        onClick={onToggle}
-        className="fixed left-4 bottom-20 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-surface-2 text-text-secondary border border-border hover:text-text-interactive transition-colors"
-        title="Show Algorithm progress"
-      >
-        <span>♻️</span>
-        <span>Algorithm</span>
-        {activePhase && (
-          <span className="text-blue-400 text-[10px]">{activePhase.icon}</span>
-        )}
-      </button>
-    );
-  }
+  if (!visible) return null;
 
   return (
-    <div className="fixed left-4 bottom-20 z-40 w-[300px] bg-surface-1 border border-border rounded-xl shadow-2xl overflow-hidden">
+    <div className="w-[300px] bg-surface-1 border border-border rounded-xl shadow-2xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
