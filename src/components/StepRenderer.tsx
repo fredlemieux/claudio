@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { IconCopy, IconChevronRight } from "../icons";
 import type { StreamStep } from "../types";
 
 function CopyJsonButton({ json }: { json: string }) {
@@ -28,10 +29,7 @@ function CopyJsonButton({ json }: { json: string }) {
       {copied ? (
         <span className="text-green-400">Copied</span>
       ) : (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-          <path d="M5.5 3.5A1.5 1.5 0 0 1 7 2h2.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 1 .439 1.061V9.5A1.5 1.5 0 0 1 12 11V8.621a3 3 0 0 0-.879-2.121L9 4.379A3 3 0 0 0 6.879 3.5H5.5Z" />
-          <path d="M4 5a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 4 14h5a1.5 1.5 0 0 0 1.5-1.5V8.621a1.5 1.5 0 0 0-.44-1.06L7.94 5.439A1.5 1.5 0 0 0 6.878 5H4Z" />
-        </svg>
+        <IconCopy className="w-3 h-3" />
       )}
     </button>
   );
@@ -102,14 +100,7 @@ export function StepRenderer({ steps }: StepRendererProps) {
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center gap-1.5 text-[10px] text-text-tertiary hover:text-text-interactive transition-colors w-full"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
-        >
-          <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-        </svg>
+        <IconChevronRight className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`} />
         <span>{steps.length} step{steps.length !== 1 ? "s" : ""}</span>
       </button>
 

@@ -1,3 +1,4 @@
+import { IconMenu, IconPlus, IconTrash } from "../icons";
 import type { Session } from "../hooks/useSessions";
 
 interface SessionSidebarProps {
@@ -36,18 +37,7 @@ export function SessionSidebar({
         className="text-text-secondary hover:text-text-interactive transition-colors"
         title="Toggle sessions"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-4 h-4"
-        >
-          <path
-            fillRule="evenodd"
-            d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <IconMenu className="w-4 h-4" />
       </button>
 
       {/* Sidebar panel */}
@@ -62,14 +52,7 @@ export function SessionSidebar({
             onClick={onNew}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-3.5 h-3.5"
-            >
-              <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-            </svg>
+            <IconPlus className="w-3.5 h-3.5" />
             New Chat
           </button>
         </div>
@@ -108,9 +91,7 @@ export function SessionSidebar({
                   }}
                   className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-red-400 transition-all ml-2 shrink-0"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                    <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
-                  </svg>
+                  <IconTrash className="w-3 h-3" />
                 </button>
               </div>
             ))

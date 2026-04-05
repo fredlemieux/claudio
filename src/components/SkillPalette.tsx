@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { IconSearch } from "../icons";
 import type { Skill } from "../types";
 import { filterSkills } from "../hooks/useSkills";
 
@@ -76,18 +77,7 @@ export function SkillPalette({ skills, isOpen, onClose, onSelect }: SkillPalette
       <div className="relative w-[560px] max-h-[420px] bg-surface-2 border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="w-4 h-4 text-text-secondary shrink-0"
-          >
-            <path
-              fillRule="evenodd"
-              d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <IconSearch className="w-4 h-4 text-text-secondary shrink-0" />
           <input
             ref={inputRef}
             type="text"

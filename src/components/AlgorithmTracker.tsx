@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { IconCheckmark, IconXMark, IconCloseSmall, IconChevronDown } from "../icons";
 
 export interface AlgorithmPhase {
   id: string;
@@ -48,9 +49,7 @@ function PhaseStep({ phase }: { phase: AlgorithmPhase }) {
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
       )}
       {phase.status === "completed" && (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-          <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-        </svg>
+        <IconCheckmark className="w-3 h-3" />
       )}
     </div>
   );
@@ -60,16 +59,8 @@ function CriterionRow({ criterion }: { criterion: ISCriterion }) {
   const statusIcons = {
     pending: <span className="w-3 h-3 rounded border border-border inline-block" />,
     in_progress: <span className="w-3 h-3 rounded border border-blue-500 bg-blue-500/20 inline-block animate-pulse" />,
-    completed: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400">
-        <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-      </svg>
-    ),
-    failed: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-red-400">
-        <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
-      </svg>
-    ),
+    completed: <IconCheckmark className="w-3 h-3 text-green-400" />,
+    failed: <IconXMark className="w-3 h-3 text-red-400" />,
   };
 
   return (
@@ -117,9 +108,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
           onClick={onToggle}
           className="text-text-secondary hover:text-text-interactive transition-colors"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-          </svg>
+          <IconCloseSmall className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -140,14 +129,7 @@ export function AlgorithmTracker({ phases, criteria, visible, onToggle }: Algori
             className="w-full flex items-center justify-between px-3 py-2 text-[10px] text-text-secondary hover:text-text-interactive transition-colors"
           >
             <span>Ideal State Criteria ({criteria.length})</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              className={`w-3 h-3 transition-transform ${showCriteria ? "rotate-180" : ""}`}
-            >
-              <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-            </svg>
+            <IconChevronDown className={`w-3 h-3 transition-transform ${showCriteria ? "rotate-180" : ""}`} />
           </button>
           {showCriteria && (
             <div className="px-3 pb-3 max-h-[200px] overflow-y-auto space-y-0.5">

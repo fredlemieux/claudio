@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { IconCheckmark, IconXMark, IconChevronDown } from "../icons";
 import type { ISCriterion } from "./AlgorithmTracker";
 
 interface ISCPanelProps {
@@ -8,16 +9,8 @@ interface ISCPanelProps {
 const STATUS_ICONS = {
   pending: <span className="w-3 h-3 rounded border border-border inline-block shrink-0" />,
   in_progress: <span className="w-3 h-3 rounded border border-blue-500 bg-blue-500/20 inline-block animate-pulse shrink-0" />,
-  completed: (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400 shrink-0">
-      <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-    </svg>
-  ),
-  failed: (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-red-400 shrink-0">
-      <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
-    </svg>
-  ),
+  completed: <IconCheckmark className="w-3 h-3 text-green-400 shrink-0" />,
+  failed: <IconXMark className="w-3 h-3 text-red-400 shrink-0" />,
 };
 
 export function ISCPanel({ criteria }: ISCPanelProps) {
@@ -42,14 +35,7 @@ export function ISCPanel({ criteria }: ISCPanelProps) {
             {failedCount > 0 && <span className="text-red-400 ml-1">{failedCount} failed</span>}
           </span>
         </div>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className={`w-3 h-3 text-text-tertiary transition-transform ${expanded ? "rotate-180" : ""}`}
-        >
-          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-        </svg>
+        <IconChevronDown className={`w-3 h-3 text-text-tertiary transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
 
       {/* Progress bar */}

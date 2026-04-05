@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { IconChevronDown } from "../icons";
 
 export interface ToolCall {
   id: string;
@@ -55,14 +56,7 @@ function ToolCallRow({ tool }: { tool: ToolCall }) {
         <span className="text-[10px] text-text-tertiary ml-auto">
           {formatDuration(tool.startedAt, tool.completedAt)}
         </span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className={`w-2.5 h-2.5 transition-transform ${expanded ? "rotate-180" : ""}`}
-        >
-          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-        </svg>
+        <IconChevronDown className={`w-2.5 h-2.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
       {expanded && (
         <div className="mt-1 space-y-1">
@@ -105,14 +99,7 @@ export function ToolUseIndicator({ tools }: ToolUseIndicatorProps) {
             ? `${running} tool${running > 1 ? "s" : ""} running`
             : `${completed} tool call${completed !== 1 ? "s" : ""}`}
         </span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className={`w-3 h-3 ml-auto transition-transform ${collapsed ? "" : "rotate-180"}`}
-        >
-          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-        </svg>
+        <IconChevronDown className={`w-3 h-3 ml-auto transition-transform ${collapsed ? "" : "rotate-180"}`} />
       </button>
       {!collapsed && (
         <div className="px-3 pb-2 space-y-0.5">
