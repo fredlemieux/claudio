@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "../layout";
 import { MessageContent } from "../components/MessageContent";
 import { StepRenderer } from "../components/StepRenderer";
 import { ToolUseIndicator } from "../components/ToolUseIndicator";
@@ -25,7 +26,7 @@ export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, dra
   }, [messages, scrollToBottom]);
 
   return (
-    <div className={`flex-1 overflow-y-auto px-4 py-6 space-y-4 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+    <div className={`flex-1 overflow-y-auto px-4 py-6 space-y-4 transition-all ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
       {messages.map((msg, index) => (
         <div
           key={msg.id}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { IconClose } from "../icons";
 import type { LogEntry } from "../types";
+import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "../layout";
 
 interface DebugConsoleProps {
   logs: LogEntry[];
@@ -87,7 +88,7 @@ export function DebugConsole({ logs, visible, onToggle, onClear, sidebarOpen, dr
   if (!visible) return null;
 
   return (
-    <div className={`bg-base border-t border-border shadow-2xl transition-[margin] ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+    <div className={`bg-base border-t border-border shadow-2xl transition-[margin] ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
       {/* Resize handle — drag up to make taller */}
       <div
         className="h-1 cursor-ns-resize bg-border hover:bg-blue-500/60 transition-colors"

@@ -1,4 +1,5 @@
 import { IconMenu, IconPlus, IconTrash } from "../icons";
+import { SIDEBAR_WIDTH } from "../layout";
 import type { Session } from "../hooks/useSessions";
 
 interface SessionSidebarProps {
@@ -42,7 +43,7 @@ export function SessionSidebar({
 
       {/* Sidebar panel */}
       <div
-        className={`fixed top-12 left-0 bottom-0 w-[260px] bg-base border-r border-border z-30 transform transition-transform duration-200 flex flex-col ${
+        className={`fixed top-12 left-0 bottom-0 ${SIDEBAR_WIDTH} bg-base border-r border-border z-30 transform transition-transform duration-200 flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

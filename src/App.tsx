@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "./layout";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SkillPalette } from "./components/SkillPalette";
 import { AgentDrawer } from "./components/AgentDrawer";
@@ -146,7 +147,7 @@ function App() {
 
       {/* Toolbar row — toggle buttons above InputBar, right-aligned.
           The Algo button is wrapped in `relative` so the popover can anchor to it. */}
-      <div className={`flex items-center justify-end px-4 py-1 gap-1 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+      <div className={`flex items-center justify-end px-4 py-1 gap-1 transition-all ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
         <div className="relative">
           {/* ISC popover — floats above this button, right-aligned */}
           {iscVisible && (

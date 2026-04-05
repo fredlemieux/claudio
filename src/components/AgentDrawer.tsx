@@ -4,6 +4,7 @@ import {
   IconCheckmark, IconXMark, IconChevronDown, IconClose,
 } from "../icons";
 import type { AgentInfo } from "../types";
+import { DRAWER_WIDTH } from "../layout";
 
 interface AgentDrawerProps {
   agents: AgentInfo[];
@@ -373,7 +374,7 @@ export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
 
       {/* Drawer panel */}
       <div
-        className={`fixed top-12 right-0 bottom-0 w-[340px] bg-surface-1 border-l border-border z-30 transform transition-transform duration-200 ${
+        className={`fixed top-12 right-0 bottom-0 ${DRAWER_WIDTH} bg-surface-1 border-l border-border z-30 transform transition-transform duration-200 ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

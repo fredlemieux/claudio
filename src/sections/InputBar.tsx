@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "../layout";
 import { SlashAutocomplete } from "../components/SlashAutocomplete";
 import { IconStop, IconSend } from "../icons";
 import { filterSkills } from "../hooks/useSkills";
@@ -103,7 +104,7 @@ export function InputBar({
   };
 
   return (
-    <div className={`relative px-4 pb-4 pt-2 transition-all ${sidebarOpen ? "ml-[260px]" : ""} ${drawerOpen ? "mr-[340px]" : ""}`}>
+    <div className={`relative px-4 pb-4 pt-2 transition-all ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
       <SlashAutocomplete
         skills={slashResults}
         selectedIndex={slashIndex}

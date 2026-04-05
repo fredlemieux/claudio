@@ -1,34 +1,22 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import {Command} from "@tauri-apps/plugin-shell";
+import { useCallback, useRef, useState } from "react";
+import { Command } from "@tauri-apps/plugin-shell";
 import type {
-  AlgorithmPhase, ISCriterion, AgentInfo, ToolCall, LogEntry,
-  Message, StreamStep, ClaudeModel, StreamEvent, StreamEventCallbacks,
+  Message, StreamStep, ClaudeModel, StreamEvent, StreamEventCallbacks, ToolCall,
 } from "../types";
 import { parseAlgorithmState } from "../components/AlgorithmTracker";
-import type {Session} from "./useSessions";
+import type { Session } from "./useSessions";
 import { handleStreamEvent } from "../utils/handleStreamEvent";
+import { useDebugLog } from "./useDebugLog";
+import { useISC } from "./useISC";
+import { useAgentTracker } from "./useAgentTracker";
 
-const ISC_PREFIX = "claudio-isc-";
+// ─── Process types ───────────────────────────────────────────
 
-function loadISC(sessionId: string): ISCriterion[] {
-  try {
-    const stored = localStorage.getItem(ISC_PREFIX + sessionId);
-    return stored ? JSON.parse(stored) : [];
-  } catch { return []; }
-}
-
-function saveISC(sessionId: string, criteria: ISCriterion[]) {
-  localStorage.setItem(ISC_PREFIX + sessionId, JSON.stringify(criteria));
-}
-
-// Minimal interface for the Tauri Child object — only what useClaude actually uses.
 interface SpawnedChild {
   pid: number;
   kill(): Promise<void>;
 }
 
-// Minimal interface for the Tauri Command object — only the surface useClaude touches.
-// Keeping this separate from Tauri's types lets tests inject a fake without Tauri.
 interface SpawnableCommand {
   stdout: { on(event: "data", cb: (data: Uint8Array | string) => void): void };
   stderr: { on(event: "data", cb: (data: Uint8Array | string) => void): void };
@@ -37,46 +25,22 @@ interface SpawnableCommand {
   spawn(): Promise<SpawnedChild>;
 }
 
-/**
- * Factory that creates a command object. Defaults to Tauri's Command.create.
- * Inject a fake in tests to exercise sendMessage without spawning real processes.
- */
 export type CommandFactory = (
   program: string,
   args: string[],
   opts: Record<string, unknown>,
 ) => SpawnableCommand;
 
-export interface UseClaudeOptions {
-  sessions: Session[];
-  activeSessionId: string | null;
-  activeSession: Session | null;
-  createSession: () => Session;
-  updateMessages: (sessionId: string, messages: Message[]) => void;
-  setClaudeSessionId: (sessionId: string, claudeSessionId: string) => void;
-  model: ClaudeModel;
-  /** Override the command factory — defaults to Tauri's Command.create. Useful in tests. */
-  createCommand?: CommandFactory;
-}
+// ─── Stream buffer ───────────────────────────────────────────
+
 interface StreamBuffer {
-  /** Append a text delta and schedule an rAF flush. */
   append(delta: string): void;
-  /** Replace the entire content and flush immediately. */
   setFull(content: string): void;
-  /** Add a step entry and schedule an rAF flush. */
   addStep(step: StreamStep): void;
-  /** Return the current accumulated content string. */
   getContent(): string;
-  /** Flush immediately, bypassing rAF debouncing. */
   forceFlush(): void;
 }
 
-/**
- * Creates a buffer that coalesces rapid content updates via rAF debouncing.
- * Call once per sendMessage invocation — not at the React hook level.
- *
- * onFlush receives the latest content + steps each time the buffer drains.
- */
 function createStreamBuffer(
   onFlush: (content: string, steps: StreamStep[]) => void,
 ): StreamBuffer {
@@ -84,17 +48,8 @@ function createStreamBuffer(
   let steps: StreamStep[] = [];
   let rafPending = false;
 
-  const flush = () => {
-    rafPending = false;
-    onFlush(content, steps);
-  };
-
-  const schedule = () => {
-    if (!rafPending) {
-      rafPending = true;
-      requestAnimationFrame(flush);
-    }
-  };
+  const flush = () => { rafPending = false; onFlush(content, steps); };
+  const schedule = () => { if (!rafPending) { rafPending = true; requestAnimationFrame(flush); } };
 
   return {
     append: (delta) => { content += delta; schedule(); },
@@ -104,6 +59,21 @@ function createStreamBuffer(
     forceFlush: flush,
   };
 }
+
+// ─── Options ─────────────────────────────────────────────────
+
+export interface UseClaudeOptions {
+  sessions: Session[];
+  activeSessionId: string | null;
+  activeSession: Session | null;
+  createSession: () => Session;
+  updateMessages: (sessionId: string, messages: Message[]) => void;
+  setClaudeSessionId: (sessionId: string, claudeSessionId: string) => void;
+  model: ClaudeModel;
+  createCommand?: CommandFactory;
+}
+
+// ─── Hook ────────────────────────────────────────────────────
 
 export function useClaude({
   sessions,
@@ -116,86 +86,36 @@ export function useClaude({
   createCommand = Command.create as unknown as CommandFactory,
 }: UseClaudeOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [algoPhases, setAlgoPhases] = useState<AlgorithmPhase[]>([]);
-  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>(() =>
-    activeSessionId ? loadISC(activeSessionId) : []
-  );
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
-  const [debugLogs, setDebugLogs] = useState<LogEntry[]>([]);
-  const [debugVisible, setDebugVisible] = useState(false);
   const childRef = useRef<SpawnedChild | null>(null);
-  // Tracks when criteria were just loaded from storage so the save effect doesn't
-  // immediately write the PREVIOUS session's criteria to the NEW session's key.
-  const criteriaJustLoadedRef = useRef(false);
 
-  // Load persisted criteria when session changes
-  useEffect(() => {
-    criteriaJustLoadedRef.current = true;
-    setAlgoCriteria(activeSessionId ? loadISC(activeSessionId) : []);
-  }, [activeSessionId]);
-
-  // Persist criteria whenever they change — skip once after each session load
-  useEffect(() => {
-    if (criteriaJustLoadedRef.current) {
-      criteriaJustLoadedRef.current = false;
-      return;
-    }
-    if (activeSessionId) saveISC(activeSessionId, algoCriteria);
-  }, [activeSessionId, algoCriteria]);
-
-  const addLog = useCallback((level: LogEntry["level"], source: LogEntry["source"], message: string) => {
-    setDebugLogs((prev) => [
-      ...prev.slice(-500),
-      { id: crypto.randomUUID(), timestamp: Date.now(), level, source, message },
-    ]);
-  }, []);
-
-  const clearLogs = useCallback(() => setDebugLogs([]), []);
+  const { debugLogs, debugVisible, setDebugVisible, addLog, clearLogs } = useDebugLog();
+  const { algoPhases, setAlgoPhases, algoCriteria, updateCriteria, updateCriteriaStatus, resetISC } = useISC(activeSessionId);
+  const { agents, handleAgentEvent, resetAgents } = useAgentTracker();
 
   const stopStreaming = useCallback(async () => {
     if (childRef.current) {
-      try {
-        await childRef.current.kill();
-      } catch (err) {
-        console.error("Failed to kill process:", err);
-      }
+      try { await childRef.current.kill(); } catch (err) { console.error("Failed to kill process:", err); }
       childRef.current = null;
     }
     setIsStreaming(false);
   }, []);
 
   const resetForNewChat = useCallback(() => {
-    setAgents([]);
-    setAlgoPhases([]);
-    setAlgoCriteria([]);
-  }, []);
+    resetAgents();
+    resetISC();
+  }, [resetAgents, resetISC]);
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
 
     let sessionId = activeSessionId;
-    if (!sessionId) {
-      const session = createSession();
-      sessionId = session.id;
-    }
+    if (!sessionId) { sessionId = createSession().id; }
 
     const now = Date.now();
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: trimmed,
-      timestamp: now,
-    };
-
-    const assistantMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      timestamp: now,
-      steps: [],
-    };
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: now };
+    const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: now, steps: [] };
 
     const currentMessages = activeSession?.messages || [];
     let latestMessages = [...currentMessages, userMsg, assistantMsg];
@@ -209,77 +129,27 @@ export function useClaude({
       );
       updateMessages(sessionId!, latestMessages);
       const algoState = parseAlgorithmState(content);
-      const hasActivePhases = algoState.phases.some((p) => p.status !== "pending");
-      if (hasActivePhases) setAlgoPhases(algoState.phases);
-      if (algoState.criteria.length > 0) {
-        setAlgoCriteria((prev) => {
-          const merged = [...prev];
-          for (const c of algoState.criteria) {
-            const idx = merged.findIndex((e) => e.id === c.id);
-            if (idx >= 0) merged[idx] = { ...merged[idx], status: c.status };
-            else merged.push(c);
-          }
-          return merged;
-        });
-      }
-      // Debug: log whenever ISC or phases are detected so we can trace parsing
-      if (hasActivePhases || algoState.criteria.length > 0) {
-        addLog("debug", "app", `[ISC] phases=${algoState.phases.filter(p => p.status !== "pending").map(p => p.name).join(",") || "none"} criteria=${algoState.criteria.length} (${algoState.criteria.map(c => c.id).join(",")})`);
-      }
+      if (algoState.phases.some((p) => p.status !== "pending")) setAlgoPhases(algoState.phases);
+      if (algoState.criteria.length > 0) updateCriteriaStatus(algoState.criteria);
     });
 
-    const finalizeMessage = (costUsd?: number, durationMs?: number) => {
-      buf.forceFlush();
-      latestMessages = latestMessages.map((m) =>
-        m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
-      );
-      updateMessages(sessionId!, latestMessages);
-    };
-
-    // Wire up the callbacks that connect the pure handleStreamEvent function
-    // to this message send's local state (buf, latestMessages, etc.)
     const streamCallbacks: StreamEventCallbacks = {
       addLog,
       addStep: buf.addStep,
       appendContent: buf.append,
       setContent: buf.setFull,
-      finalizeMessage,
-      onSessionId: (claudeSessionId) => setClaudeSessionId(sessionId!, claudeSessionId),
+      finalizeMessage: (costUsd, durationMs) => {
+        buf.forceFlush();
+        latestMessages = latestMessages.map((m) =>
+          m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
+        );
+        updateMessages(sessionId!, latestMessages);
+      },
+      onSessionId: (id) => setClaudeSessionId(sessionId!, id),
       getBuffer: buf.getContent,
       startTime: now,
-      onISCCriteria: (newCriteria) => setAlgoCriteria((prev) => {
-        const merged = [...prev];
-        for (const c of newCriteria) {
-          const idx = merged.findIndex((e) => e.id === c.id);
-          if (idx >= 0) merged[idx] = c;
-          else merged.push(c);
-        }
-        return merged;
-      }),
-      onAgentUpdate: (agentEvent) => setAgents((prev) => {
-        if (agentEvent.kind === "spawn") {
-          return [...prev, agentEvent.agent];
-        }
-        // kind === "update" — merge into existing agent
-        const idx = prev.findIndex((a) => a.id === agentEvent.id);
-        if (idx < 0) return prev; // Skip updates for unknown IDs
-        const existing = prev[idx];
-        const updated = [...prev];
-        const mergedToolCalls = agentEvent.toolCalls?.length
-          ? [...(existing.toolCalls ?? []), ...agentEvent.toolCalls]
-          : existing.toolCalls;
-        updated[idx] = {
-          ...existing,
-          status: agentEvent.status,
-          description: agentEvent.description || existing.description,
-          output: agentEvent.output || existing.output,
-          completedAt: (agentEvent.status === "completed" || agentEvent.status === "failed")
-            ? Date.now()
-            : existing.completedAt,
-          toolCalls: mergedToolCalls,
-        };
-        return updated;
-      }),
+      onISCCriteria: updateCriteria,
+      onAgentUpdate: handleAgentEvent,
     };
 
     try {
@@ -287,122 +157,72 @@ export function useClaude({
       const claudeSessionId = currentSession?.claudeSessionId;
       const cwd = currentSession?.workingDirectory;
       const baseArgs = ["-p", trimmed, "--output-format", "stream-json", "--verbose", "--model", model];
-      const args = claudeSessionId
-        ? [...baseArgs, "--resume", claudeSessionId]
-        : baseArgs;
+      const args = claudeSessionId ? [...baseArgs, "--resume", claudeSessionId] : baseArgs;
 
       addLog("info", "app", `Spawning: claude ${args.join(" ")}${cwd ? ` (cwd: ${cwd})` : ""}`);
 
-      // Use encoding: 'raw' to bypass Tauri Issue #1632 — spawn() buffers stdout
-      // until a newline is encountered, which breaks streaming for long-running processes.
-      // With raw encoding, we get Uint8Array chunks and handle decoding ourselves.
-      // NOTE: Do NOT set `env` — Tauri replaces the entire environment instead of merging,
-      // which strips PATH, HOME, etc. and causes claude to hang silently.
-      const spawnOpts: Record<string, unknown> = {
-        ...(cwd ? { cwd } : {}),
-        encoding: "raw",
-      };
-
-      // ROOT CAUSE FIX: Tauri spawn() keeps stdin piped open with no JS-side close API
-      // (Tauri Issue #2136). Claude -p waits for stdin EOF before processing (Claude
-      // Issue #34455). Without EOF, it hangs forever producing zero output.
-      //
-      // Fix: Wrap via bash with `< /dev/null` to give claude immediate stdin EOF.
-      // Also unset CLAUDECODE env vars to prevent nested session detection.
-      // The '--' after the script separates bash args from positional params ($@).
+      const spawnOpts: Record<string, unknown> = { ...(cwd ? { cwd } : {}), encoding: "raw" };
       const bashScript = 'unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_MAX_OUTPUT_TOKENS; exec claude "$@" < /dev/null';
-      const bashArgs = ["-c", bashScript, "--", ...args];
-      addLog("info", "app", `Wrapping via bash (stdin=/dev/null): bash -c '...' -- ${args.join(" ")}`);
-      const command = createCommand("bash", bashArgs, spawnOpts);
-      addLog("debug", "app", `Command created (bash wrapper, encoding=raw), wiring event handlers...`);
+      const command = createCommand("bash", ["-c", bashScript, "--", ...args], spawnOpts);
 
       let stdoutChunkCount = 0;
-      let stderrLineCount = 0;
       const decoder = new TextDecoder();
-      let lineBuffer = ""; // accumulate partial lines from raw chunks
+      let lineBuffer = "";
 
-      // Wire up event handlers before spawn
-      // With encoding: 'raw', data arrives as Uint8Array — decode and split on newlines
       command.stdout.on("data", (rawData: Uint8Array | string) => {
         stdoutChunkCount++;
         const chunk = typeof rawData === "string" ? rawData : decoder.decode(new Uint8Array(rawData), { stream: true });
-        addLog("debug", "stdout", `[chunk ${stdoutChunkCount}] raw ${typeof rawData === "string" ? "string" : "bytes"}(${typeof rawData === "string" ? rawData.length : rawData.length}) decoded(${chunk.length} chars): ${chunk.slice(0, 200)}`);
-
         lineBuffer += chunk;
         const lines = lineBuffer.split("\n");
-        // Last element is either empty (if chunk ended with \n) or a partial line
         lineBuffer = lines.pop() ?? "";
-
         for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
+          const t = line.trim();
+          if (!t) continue;
           try {
-            const event: StreamEvent = JSON.parse(trimmed);
-            addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${"subtype" in event ? event.subtype : "none"}`);
-            handleStreamEvent(event, trimmed, streamCallbacks);
-          } catch (parseErr) {
-            addLog("warn", "stdout", `JSON parse FAILED: ${parseErr}. Raw: ${trimmed.slice(0, 300)}`);
+            handleStreamEvent(JSON.parse(t) as StreamEvent, t, streamCallbacks);
+          } catch (e) {
+            addLog("warn", "stdout", `JSON parse FAILED: ${e}. Raw: ${t.slice(0, 300)}`);
           }
         }
       });
 
-      // With encoding: 'raw', stderr also arrives as Uint8Array
       const stderrDecoder = new TextDecoder();
       command.stderr.on("data", (rawData: Uint8Array | string) => {
-        stderrLineCount++;
         const text = typeof rawData === "string" ? rawData : stderrDecoder.decode(new Uint8Array(rawData), { stream: true });
-        addLog("error", "stderr", `[line ${stderrLineCount}] ${text}`);
+        addLog("error", "stderr", text);
       });
 
       command.on("close", (payload) => {
-        // Flush any remaining data in the line buffer
         if (lineBuffer.trim()) {
-          addLog("debug", "stdout", `Flushing remaining lineBuffer (${lineBuffer.length} chars): ${lineBuffer.slice(0, 200)}`);
-          try {
-            const trimmedLine = lineBuffer.trim();
-            const event: StreamEvent = JSON.parse(trimmedLine);
-            handleStreamEvent(event, trimmedLine, streamCallbacks);
-          } catch {
-            addLog("warn", "stdout", `Final lineBuffer not valid JSON: ${lineBuffer.slice(0, 200)}`);
-          }
+          try { handleStreamEvent(JSON.parse(lineBuffer.trim()) as StreamEvent, lineBuffer.trim(), streamCallbacks); }
+          catch { addLog("warn", "stdout", `Final lineBuffer not valid JSON: ${lineBuffer.slice(0, 200)}`); }
           lineBuffer = "";
         }
-
-        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}, stdoutChunks=${stdoutChunkCount}, stderrLines=${stderrLineCount}, contentBuffer=${buf.getContent().length} chars`);
+        addLog("info", "process", `Process CLOSED: code=${payload.code}, signal=${payload.signal ?? "none"}`);
         childRef.current = null;
-
-        // If non-zero exit without a result event, show error
         if (payload.code !== 0 && !buf.getContent()) {
-          addLog("warn", "process", `Non-zero exit with empty content buffer — showing error to user`);
-          const errorContent = payload.signal
+          buf.setFull(payload.signal
             ? `**Process killed** (signal: ${payload.signal})`
-            : `**Process exited with code ${payload.code}**\n\nCheck the debug console for details.`;
-          buf.setFull(errorContent);
+            : `**Process exited with code ${payload.code}**\n\nCheck the debug console for details.`);
           setDebugVisible(true);
-        } else if (payload.code === 0 && !buf.getContent()) {
-          addLog("warn", "process", `Exit code 0 but content buffer is EMPTY — no content was streamed`);
         }
-
         setIsStreaming(false);
       });
 
       command.on("error", (error: string) => {
-        addLog("error", "process", `Process ERROR event: ${error}`);
+        addLog("error", "process", `Process ERROR: ${error}`);
         buf.setFull(`**Process error:**\n\n\`\`\`\n${error}\n\`\`\``);
         setIsStreaming(false);
         setDebugVisible(true);
       });
 
-      // Spawn the process
-      addLog("debug", "app", `Calling command.spawn()...`);
       const child = await command.spawn();
-      addLog("info", "app", `Spawn succeeded, child pid=${child.pid}`);
+      addLog("info", "app", `Spawn succeeded, pid=${child.pid}`);
       childRef.current = child;
 
-      // Timeout warning — Claude API can take 10-30s for cold start
       setTimeout(() => {
         if (stdoutChunkCount === 0 && childRef.current) {
-          addLog("warn", "app", `⚠️ No stdout chunks received after 15s! pid=${child.pid}, stderrLines=${stderrLineCount}, bufLen=${buf.getContent().length}. Process may be hung.`);
+          addLog("warn", "app", `No stdout after 15s — process may be hung.`);
           setDebugVisible(true);
         }
       }, 15000);
@@ -419,21 +239,11 @@ export function useClaude({
       setIsStreaming(false);
       setDebugVisible(true);
     }
-  }, [isStreaming, activeSessionId, activeSession, sessions, createSession, updateMessages, setClaudeSessionId, model, addLog]);
+  }, [isStreaming, activeSessionId, activeSession, sessions, createSession, updateMessages, setClaudeSessionId, model, addLog, setAlgoPhases, updateCriteria, updateCriteriaStatus, handleAgentEvent, setDebugVisible, createCommand]);
 
   return {
-    isStreaming,
-    sendMessage,
-    stopStreaming,
-    resetForNewChat,
-    agents,
-    algoPhases,
-    algoCriteria,
-    toolCalls,
-    debugLogs,
-    debugVisible,
-    setDebugVisible,
-    addLog,
-    clearLogs,
+    isStreaming, sendMessage, stopStreaming, resetForNewChat,
+    agents, algoPhases, algoCriteria, toolCalls,
+    debugLogs, debugVisible, setDebugVisible, addLog, clearLogs,
   };
 }
