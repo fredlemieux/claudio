@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@shikijs/rehype": "^4.0.2",
@@ -31,12 +33,14 @@
     "@storybook/test": "^8.6.15",
     "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^2",
+    "@testing-library/jest-dom": "^6.9.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "storybook": "^8.6.18",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^4.1.2"
   }
 }

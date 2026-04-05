@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { ISCPanel } from "../ISCPanel";
-import type { ISCriterion } from "../AlgorithmTracker";
+import type { ISCriterion } from "../../types";
 
 const meta: Meta<typeof ISCPanel> = {
   title: "Components/ISCPanel",

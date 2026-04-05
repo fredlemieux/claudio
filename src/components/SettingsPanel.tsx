@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { IconClose } from "../icons";
-
-export type ClaudeModel = "opus" | "sonnet" | "haiku";
+import type { ClaudeModel } from "../types";
 
 interface Settings {
   userName: string;

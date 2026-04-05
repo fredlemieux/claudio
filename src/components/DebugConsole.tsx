@@ -1,13 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { IconClose } from "../icons";
-
-export interface LogEntry {
-  id: string;
-  timestamp: number;
-  level: "info" | "warn" | "error" | "debug";
-  source: "stdout" | "stderr" | "process" | "app" | "system" | "stream";
-  message: string;
-}
+import type { LogEntry } from "../types";
 
 interface DebugConsoleProps {
   logs: LogEntry[];

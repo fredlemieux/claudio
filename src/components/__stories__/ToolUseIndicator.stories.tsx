@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ToolUseIndicator, type ToolCall } from "../ToolUseIndicator";
+import { ToolUseIndicator } from "../ToolUseIndicator";
+import type { ToolCall } from "../../types";
 
 const meta: Meta<typeof ToolUseIndicator> = {
   title: "Components/ToolUseIndicator",

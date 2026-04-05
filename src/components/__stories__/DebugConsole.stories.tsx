@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { DebugConsole, type LogEntry } from "../DebugConsole";
+import { DebugConsole } from "../DebugConsole";
+import type { LogEntry } from "../../types";
 
 const meta: Meta<typeof DebugConsole> = {
   title: "Components/DebugConsole",

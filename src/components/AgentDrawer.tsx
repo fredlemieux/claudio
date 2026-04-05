@@ -3,31 +3,7 @@ import {
   IconCodeBrackets, IconMagnifyingGlass, IconBook, IconGrid, IconSparkle,
   IconCheckmark, IconXMark, IconChevronDown, IconClose,
 } from "../icons";
-
-export interface AgentToolCall {
-  name: string;
-  timestamp: number;
-}
-
-export interface AgentInfo {
-  id: string;
-  name: string;
-  type: string;
-  status: "running" | "completed" | "failed";
-  description: string;
-  output: string;
-  startedAt: number;
-  /** Full prompt given to the agent */
-  prompt?: string;
-  /** Last known elapsed seconds from tool_progress heartbeats */
-  elapsedSeconds?: number;
-  /** Timestamp when agent completed/failed */
-  completedAt?: number;
-  /** Tool calls observed via tool_progress events */
-  toolCalls?: AgentToolCall[];
-  /** Optional ISC criterion description shown as subtitle */
-  iscDescription?: string;
-}
+import type { AgentInfo } from "../types";
 
 interface AgentDrawerProps {
   agents: AgentInfo[];

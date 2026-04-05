@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { MessageContent } from "../components/MessageContent";
 import { StepRenderer } from "../components/StepRenderer";
-import { ToolUseIndicator, type ToolCall } from "../components/ToolUseIndicator";
+import { ToolUseIndicator } from "../components/ToolUseIndicator";
+import type { ToolCall } from "../types";
 import type { Message } from "../types";
 
 interface MessageListProps {

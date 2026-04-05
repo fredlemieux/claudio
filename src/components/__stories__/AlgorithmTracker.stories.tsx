@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AlgorithmTracker, type AlgorithmPhase, type ISCriterion } from "../AlgorithmTracker";
+import { AlgorithmTracker } from "../AlgorithmTracker";
+import type { AlgorithmPhase, ISCriterion } from "../../types";
 
 const meta: Meta<typeof AlgorithmTracker> = {
   title: "Components/AlgorithmTracker",

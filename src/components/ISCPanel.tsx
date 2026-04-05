@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { IconCheckmark, IconXMark, IconChevronDown } from "../icons";
-import type { ISCriterion } from "./AlgorithmTracker";
+import type { ISCriterion } from "../types";
 
 interface ISCPanelProps {
   criteria: ISCriterion[];

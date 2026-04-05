@@ -1,21 +1,6 @@
 import { useState } from "react";
 import { IconCheckmark, IconXMark, IconCloseSmall, IconChevronDown } from "../icons";
-
-export interface AlgorithmPhase {
-  id: string;
-  name: string;
-  icon: string;
-  status: "pending" | "active" | "completed";
-  startedAt?: number;
-  completedAt?: number;
-}
-
-export interface ISCriterion {
-  id: string;
-  description: string;
-  status: "pending" | "in_progress" | "completed" | "failed";
-  domain?: string;
-}
+import type { AlgorithmPhase, ISCriterion } from "../types";
 
 interface AlgorithmTrackerProps {
   phases: AlgorithmPhase[];

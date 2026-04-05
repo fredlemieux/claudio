@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AgentDrawer, type AgentInfo } from "../AgentDrawer";
+import { AgentDrawer } from "../AgentDrawer";
+import type { AgentInfo } from "../../types";
 import { fn } from "@storybook/test";
 
 const meta: Meta<typeof AgentDrawer> = {

@@ -1,17 +1,12 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Command} from "@tauri-apps/plugin-shell";
-import {
-  type AlgorithmPhase,
-  type ISCriterion,
-  parseAlgorithmState
-} from "../components/AlgorithmTracker";
-import type {AgentInfo} from "../components/AgentDrawer";
-import type {ToolCall} from "../components/ToolUseIndicator";
-import type {LogEntry} from "../components/DebugConsole";
-import type {Message, StreamStep} from "../types";
+import type {
+  AlgorithmPhase, ISCriterion, AgentInfo, ToolCall, LogEntry,
+  Message, StreamStep, ClaudeModel, StreamEvent, StreamEventCallbacks,
+} from "../types";
+import { parseAlgorithmState } from "../components/AlgorithmTracker";
 import type {Session} from "./useSessions";
-import type {ClaudeModel} from "../components/SettingsPanel";
-import {handleStreamEvent, type StreamEvent, type StreamEventCallbacks} from "../utils/handleStreamEvent";
+import { handleStreamEvent } from "../utils/handleStreamEvent";
 
 const ISC_PREFIX = "claudio-isc-";
 
@@ -261,37 +256,29 @@ export function useClaude({
         }
         return merged;
       }),
-      onAgentUpdate: (agent) => setAgents((prev) => {
-        const idx = prev.findIndex((a) => a.id === agent.id);
-        if (idx >= 0) {
-          // Merge — keep existing fields, update changed ones
-          const existing = prev[idx];
-          const updated = [...prev];
-          // Append new tool calls to existing list
-          const mergedToolCalls = agent.toolCalls?.length
-            ? [...(existing.toolCalls ?? []), ...agent.toolCalls]
-            : existing.toolCalls;
-          // Update description from task_progress (shows current activity)
-          const mergedDescription = agent.description || existing.description;
-          updated[idx] = {
-            ...existing,
-            status: agent.status,
-            description: mergedDescription,
-            output: agent.output || existing.output,
-            elapsedSeconds: agent.elapsedSeconds ?? existing.elapsedSeconds,
-            completedAt: (agent.status === "completed" || agent.status === "failed")
-              ? Date.now()
-              : existing.completedAt,
-            toolCalls: mergedToolCalls,
-          };
-          return updated;
+      onAgentUpdate: (agentEvent) => setAgents((prev) => {
+        if (agentEvent.kind === "spawn") {
+          return [...prev, agentEvent.agent];
         }
-        // Only create new agent entries from Agent tool_use events (which have name + type set)
-        // Skip updates for unknown IDs (task_progress/task_notification/tool_result for non-agents)
-        if (agent.name && agent.type) {
-          return [...prev, agent];
-        }
-        return prev;
+        // kind === "update" — merge into existing agent
+        const idx = prev.findIndex((a) => a.id === agentEvent.id);
+        if (idx < 0) return prev; // Skip updates for unknown IDs
+        const existing = prev[idx];
+        const updated = [...prev];
+        const mergedToolCalls = agentEvent.toolCalls?.length
+          ? [...(existing.toolCalls ?? []), ...agentEvent.toolCalls]
+          : existing.toolCalls;
+        updated[idx] = {
+          ...existing,
+          status: agentEvent.status,
+          description: agentEvent.description || existing.description,
+          output: agentEvent.output || existing.output,
+          completedAt: (agentEvent.status === "completed" || agentEvent.status === "failed")
+            ? Date.now()
+            : existing.completedAt,
+          toolCalls: mergedToolCalls,
+        };
+        return updated;
       }),
     };
 
@@ -351,7 +338,7 @@ export function useClaude({
           if (!trimmed) continue;
           try {
             const event: StreamEvent = JSON.parse(trimmed);
-            addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${event.subtype ?? "none"}`);
+            addLog("debug", "stdout", `parsed OK → type=${event.type}, subtype=${"subtype" in event ? event.subtype : "none"}`);
             handleStreamEvent(event, trimmed, streamCallbacks);
           } catch (parseErr) {
             addLog("warn", "stdout", `JSON parse FAILED: ${parseErr}. Raw: ${trimmed.slice(0, 300)}`);

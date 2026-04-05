@@ -1,15 +1,6 @@
 import { useState } from "react";
 import { IconChevronDown } from "../icons";
-
-export interface ToolCall {
-  id: string;
-  name: string;
-  status: "running" | "completed" | "error";
-  input?: string;
-  output?: string;
-  startedAt: number;
-  completedAt?: number;
-}
+import type { ToolCall } from "../types";
 
 const TOOL_ICONS: Record<string, string> = {
   Read: "📄",
