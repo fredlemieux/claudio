@@ -1,9 +1,30 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeShiki from "@shikijs/rehype";
+import rehypeShikiFromHighlighter from "@shikijs/rehype/core";
+import { createHighlighter, type HighlighterGeneric } from "shiki";
 import { IconCheckmark, IconCopy } from "../icons";
 import type { Components } from "react-markdown";
+
+// Pre-create highlighter at module level (runs once)
+const SHIKI_LANGS = [
+  "typescript", "javascript", "tsx", "jsx", "json", "html", "css",
+  "python", "bash", "shell", "rust", "go", "sql", "yaml", "toml",
+  "markdown", "diff", "xml", "graphql", "dockerfile",
+] as const;
+
+const highlighterPromise = createHighlighter({
+  themes: ["one-dark-pro"],
+  langs: [...SHIKI_LANGS],
+});
+
+function useShikiHighlighter() {
+  const [highlighter, setHighlighter] = useState<HighlighterGeneric<any, any> | null>(null);
+  useEffect(() => {
+    highlighterPromise.then(setHighlighter);
+  }, []);
+  return highlighter;
+}
 
 interface MessageContentProps {
   content: string;
@@ -196,26 +217,24 @@ const components: Components = {
   },
 };
 
-const rehypeShikiOptions = {
-  theme: "one-dark-pro",
-  // Only load commonly-used languages to keep bundle smaller
-  langs: [
-    "typescript", "javascript", "tsx", "jsx", "json", "html", "css",
-    "python", "bash", "shell", "rust", "go", "sql", "yaml", "toml",
-    "markdown", "diff", "xml", "graphql", "dockerfile",
-  ],
-};
-
 export function MessageContent({ content, role }: MessageContentProps) {
+  const highlighter = useShikiHighlighter();
+
   if (role === "user") {
     return <span className="whitespace-pre-wrap">{content}</span>;
   }
+
+  // Memoize rehype plugins to avoid re-creating on every render
+  const rehypePlugins = useMemo(() => {
+    if (!highlighter) return [];
+    return [[rehypeShikiFromHighlighter, highlighter, { theme: "one-dark-pro" }] as any];
+  }, [highlighter]);
 
   return (
     <div className="prose prose-invert prose-sm max-w-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeShiki, rehypeShikiOptions]]}
+        rehypePlugins={rehypePlugins}
         components={components}
       >
         {content}

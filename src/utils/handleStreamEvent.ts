@@ -33,6 +33,20 @@ export interface StreamEventCallbacks {
   onAgentUpdate?: (agent: AgentInfo) => void;
 }
 
+/** Normalize tool result content — can be a string or an array of content blocks */
+function normalizeContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block: { type?: string; text?: string }) =>
+        block.type === "text" && block.text ? block.text : ""
+      )
+      .filter(Boolean)
+      .join("\n");
+  }
+  return content ? String(content) : "";
+}
+
 /**
  * Pure function: handles a single stream event from Claude's --stream-json output.
  *
@@ -187,7 +201,7 @@ export function handleStreamEvent(
       const userMsg = event.message as {
         content?: Array<{
           type: string;
-          content?: string;
+          content?: unknown;
           tool_use_id?: string;
           is_error?: boolean
         }>;
@@ -195,7 +209,8 @@ export function handleStreamEvent(
       const results = userMsg?.content ?? [];
       for (const result of results) {
         if (result.type === "tool_result") {
-          const preview = (result.content ?? "").slice(0, 300) + ((result.content?.length ?? 0) > 300 ? "…" : "");
+          const contentStr = normalizeContent(result.content);
+          const preview = contentStr.slice(0, 300) + (contentStr.length > 300 ? "…" : "");
           eventCallbacks.addStep({
             id: crypto.randomUUID(), type: "tool_result", timestamp: Date.now(),
             summary: result.is_error ? `ERROR: ${preview}` : preview,
@@ -209,7 +224,7 @@ export function handleStreamEvent(
               type: "",
               status: result.is_error ? "failed" : "completed",
               description: "",
-              output: (result.content ?? "").slice(0, 2000),
+              output: contentStr.slice(0, 2000),
               startedAt: 0,
             });
           }
