@@ -13,7 +13,6 @@ import { TitleBar } from "./sections/TitleBar";
 import { WelcomeScreen } from "./sections/WelcomeScreen";
 import { MessageList } from "./sections/MessageList";
 import { InputBar } from "./sections/InputBar";
-import "highlight.js/styles/github-dark.css";
 import "./App.css";
 
 function App() {
@@ -34,6 +33,22 @@ function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = activeSession?.messages || [];
+
+  // Auto-open agent drawer on first agent spawn per streaming session
+  const autoOpenFiredRef = useRef(false);
+  useEffect(() => {
+    // Reset flag when streaming stops
+    if (!claude.isStreaming) {
+      autoOpenFiredRef.current = false;
+    }
+  }, [claude.isStreaming]);
+
+  useEffect(() => {
+    if (claude.agents.length > 0 && claude.isStreaming && !autoOpenFiredRef.current && !drawerOpen) {
+      autoOpenFiredRef.current = true;
+      setDrawerOpen(true);
+    }
+  }, [claude.agents.length, claude.isStreaming, drawerOpen]);
 
   const handleNewChat = useCallback(() => {
     createSession();

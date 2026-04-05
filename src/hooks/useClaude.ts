@@ -130,14 +130,22 @@ export function useClaude({
   const [debugLogs, setDebugLogs] = useState<LogEntry[]>([]);
   const [debugVisible, setDebugVisible] = useState(false);
   const childRef = useRef<SpawnedChild | null>(null);
+  // Tracks when criteria were just loaded from storage so the save effect doesn't
+  // immediately write the PREVIOUS session's criteria to the NEW session's key.
+  const criteriaJustLoadedRef = useRef(false);
 
   // Load persisted criteria when session changes
   useEffect(() => {
+    criteriaJustLoadedRef.current = true;
     setAlgoCriteria(activeSessionId ? loadISC(activeSessionId) : []);
   }, [activeSessionId]);
 
-  // Persist criteria whenever they change
+  // Persist criteria whenever they change — skip once after each session load
   useEffect(() => {
+    if (criteriaJustLoadedRef.current) {
+      criteriaJustLoadedRef.current = false;
+      return;
+    }
     if (activeSessionId) saveISC(activeSessionId, algoCriteria);
   }, [activeSessionId, algoCriteria]);
 
@@ -208,7 +216,17 @@ export function useClaude({
       const algoState = parseAlgorithmState(content);
       const hasActivePhases = algoState.phases.some((p) => p.status !== "pending");
       if (hasActivePhases) setAlgoPhases(algoState.phases);
-      if (algoState.criteria.length > 0) setAlgoCriteria(algoState.criteria);
+      if (algoState.criteria.length > 0) {
+        setAlgoCriteria((prev) => {
+          const merged = [...prev];
+          for (const c of algoState.criteria) {
+            const idx = merged.findIndex((e) => e.id === c.id);
+            if (idx >= 0) merged[idx] = { ...merged[idx], status: c.status };
+            else merged.push(c);
+          }
+          return merged;
+        });
+      }
       // Debug: log whenever ISC or phases are detected so we can trace parsing
       if (hasActivePhases || algoState.criteria.length > 0) {
         addLog("debug", "app", `[ISC] phases=${algoState.phases.filter(p => p.status !== "pending").map(p => p.name).join(",") || "none"} criteria=${algoState.criteria.length} (${algoState.criteria.map(c => c.id).join(",")})`);

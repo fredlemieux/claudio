@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, type JSX } from "react";
+import {
+  IconCodeBrackets, IconMagnifyingGlass, IconBook, IconGrid, IconSparkle,
+  IconCheckmark, IconXMark, IconChevronDown, IconClose,
+} from "../icons";
 
 export interface AgentInfo {
   id: string;
@@ -8,6 +12,10 @@ export interface AgentInfo {
   description: string;
   output: string;
   startedAt: number;
+  /** Optional progress 0-100 (not available from stream — use for future enhancement) */
+  progress?: number;
+  /** Optional ISC criterion description shown as subtitle */
+  iscDescription?: string;
 }
 
 interface AgentDrawerProps {
@@ -16,68 +24,179 @@ interface AgentDrawerProps {
   onToggle: () => void;
 }
 
+// ─── Agent Type Icons ───────────────────────────────────────────────
+
+const typeIcons: Record<string, JSX.Element> = {
+  Engineer: <IconCodeBrackets className="w-4 h-4" />,
+  Explore: <IconMagnifyingGlass className="w-4 h-4" />,
+  Research: <IconBook className="w-4 h-4" />,
+  Architect: <IconGrid className="w-4 h-4" />,
+};
+
+function getTypeIcon(type: string): JSX.Element {
+  for (const [key, icon] of Object.entries(typeIcons)) {
+    if (type.toLowerCase().includes(key.toLowerCase())) return icon;
+  }
+  return <IconSparkle className="w-4 h-4" />;
+}
+
+// ─── Elapsed Timer Hook ─────────────────────────────────────────────
+
+function useElapsedTime(startedAt: number, isRunning: boolean): string {
+  const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startedAt) / 1000));
+
+  useEffect(() => {
+    if (!isRunning) {
+      setElapsed(Math.round((Date.now() - startedAt) / 1000));
+      return;
+    }
+    const interval = setInterval(() => {
+      setElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt, isRunning]);
+
+  if (elapsed < 60) return `${elapsed}s`;
+  const min = Math.floor(elapsed / 60);
+  const sec = elapsed % 60;
+  return `${min}m ${sec.toString().padStart(2, "0")}s`;
+}
+
+// ─── Progress Bar ───────────────────────────────────────────────────
+
+function ProgressBar({ status }: { status: AgentInfo["status"] }) {
+  if (status === "completed") {
+    return (
+      <div className="w-full h-1.5 rounded-full bg-green-900/30 overflow-hidden">
+        <div className="h-full w-full rounded-full bg-green-500 transition-all duration-500" />
+      </div>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <div className="w-full h-1.5 rounded-full bg-red-900/30 overflow-hidden">
+        <div className="h-full w-3/4 rounded-full bg-red-500" />
+      </div>
+    );
+  }
+  // Running — animated indeterminate gradient
+  return (
+    <div className="w-full h-1.5 rounded-full bg-blue-900/20 overflow-hidden">
+      <div
+        className="h-full rounded-full animate-indeterminate"
+        style={{
+          width: "40%",
+          background: "linear-gradient(90deg, transparent, #3b82f6, #60a5fa, #3b82f6, transparent)",
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Status Icons ───────────────────────────────────────────────────
+
+function StatusIcon({ status }: { status: AgentInfo["status"] }) {
+  if (status === "running") {
+    return <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse shrink-0" />;
+  }
+  if (status === "completed") {
+    return <IconCheckmark className="w-4 h-4 text-green-400 shrink-0" />;
+  }
+  return <IconXMark className="w-4 h-4 text-red-400 shrink-0" />;
+}
+
+// ─── Agent Card ─────────────────────────────────────────────────────
+
 function AgentCard({ agent }: { agent: AgentInfo }) {
   const [expanded, setExpanded] = useState(false);
+  const outputRef = useRef<HTMLPreElement>(null);
+  const elapsedStr = useElapsedTime(agent.startedAt, agent.status === "running");
 
-  const statusColor = {
-    running: "text-blue-400 bg-blue-400/10",
-    completed: "text-green-400 bg-green-400/10",
-    failed: "text-red-400 bg-red-400/10",
+  // Auto-scroll terminal output when expanded and running
+  useEffect(() => {
+    if (expanded && agent.status === "running" && outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [expanded, agent.status, agent.output]);
+
+  const borderColor = {
+    running: "border-blue-500/30",
+    completed: "border-green-500/20",
+    failed: "border-red-500/20",
   }[agent.status];
-
-  const statusIcon = {
-    running: (
-      <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-    ),
-    completed: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400">
-        <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-      </svg>
-    ),
-    failed: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-red-400">
-        <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
-      </svg>
-    ),
-  }[agent.status];
-
-  const elapsed = Math.round((Date.now() - agent.startedAt) / 1000);
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className={`border ${borderColor} rounded-lg overflow-hidden bg-surface-2/50 transition-colors`}>
+      {/* Card header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors"
+        className="w-full text-left px-3 py-2.5 hover:bg-surface-hover transition-colors"
       >
-        {statusIcon}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-text-primary truncate">
-              {agent.name}
-            </span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusColor}`}>
-              {agent.type}
-            </span>
+        <div className="flex items-center gap-2.5">
+          {/* Type icon */}
+          <span className={`${agent.status === "running" ? "text-blue-400" : agent.status === "completed" ? "text-green-400" : "text-red-400"}`}>
+            {getTypeIcon(agent.type)}
+          </span>
+
+          {/* Name and metadata */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-text-primary truncate">
+                {agent.name}
+              </span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                agent.status === "running" ? "text-blue-300 bg-blue-400/10" :
+                agent.status === "completed" ? "text-green-300 bg-green-400/10" :
+                "text-red-300 bg-red-400/10"
+              }`}>
+                {agent.type}
+              </span>
+            </div>
+            {/* ISC subtitle or description */}
+            <p className="text-[10px] text-text-secondary truncate mt-0.5">
+              {agent.iscDescription || agent.description}
+            </p>
           </div>
-          <p className="text-[10px] text-text-secondary truncate mt-0.5">
-            {agent.description}
-          </p>
+
+          {/* Elapsed time */}
+          <span className="text-[10px] text-text-secondary shrink-0 tabular-nums">
+            {elapsedStr}
+          </span>
+
+          {/* Status icon */}
+          <StatusIcon status={agent.status} />
+
+          {/* Chevron */}
+          <IconChevronDown className={`w-3 h-3 text-text-secondary transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
         </div>
-        <span className="text-[10px] text-text-secondary shrink-0">{elapsed}s</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className={`w-3 h-3 text-text-secondary transition-transform ${expanded ? "rotate-180" : ""}`}
-        >
-          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-        </svg>
+
+        {/* Progress bar */}
+        <div className="mt-2">
+          <ProgressBar status={agent.status} />
+        </div>
       </button>
 
+      {/* Expanded terminal output */}
       {expanded && (
-        <div className="px-3 pb-3 border-t border-border">
-          <pre className="text-[10px] text-text-interactive mt-2 whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto">
-            {agent.output || "No output yet..."}
+        <div className="border-t border-border">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-surface-3/50">
+            <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-wider">Output</span>
+            {agent.status === "running" && (
+              <span className="flex items-center gap-1 text-[10px] text-blue-400">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                live
+              </span>
+            )}
+          </div>
+          <pre
+            ref={outputRef}
+            className="text-[11px] text-text-interactive px-3 py-2 whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto bg-base/80"
+          >
+            {agent.output || (
+              <span className="text-text-tertiary italic">
+                {agent.status === "running" ? "Waiting for output..." : "No output captured"}
+              </span>
+            )}
           </pre>
         </div>
       )}
@@ -85,8 +204,16 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
   );
 }
 
+// ─── Main Drawer ────────────────────────────────────────────────────
+
 export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
-  const runningCount = agents.filter((a) => a.status === "running").length;
+  const runningAgents = agents.filter((a) => a.status === "running");
+  const completedAgents = agents.filter((a) => a.status === "completed");
+  const failedAgents = agents.filter((a) => a.status === "failed");
+  const runningCount = runningAgents.length;
+
+  // Sort: running first, then failed, then completed
+  const sortedAgents = [...runningAgents, ...failedAgents, ...completedAgents];
 
   return (
     <>
@@ -96,17 +223,12 @@ export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
         className={`fixed right-4 top-16 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all ${
           runningCount > 0
             ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
-            : "bg-surface-2 text-text-secondary border border-border hover:text-text-interactive"
+            : agents.length > 0
+              ? "bg-surface-2 text-text-interactive border border-border"
+              : "bg-surface-2 text-text-secondary border border-border hover:text-text-interactive"
         }`}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-3.5 h-3.5"
-        >
-          <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
-        </svg>
+        <IconSparkle className="w-3.5 h-3.5" />
         <span>Agents</span>
         {runningCount > 0 && (
           <span className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
@@ -121,46 +243,41 @@ export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-text-primary">Agents</h2>
-            <span className="text-[10px] text-text-secondary">
-              {agents.length} total
-            </span>
+            <h2 className="text-sm font-semibold text-text-primary">Active Agents</h2>
+            {runningCount > 0 && (
+              <span className="text-[10px] text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full">
+                {runningCount} running
+              </span>
+            )}
+            {agents.length > 0 && runningCount === 0 && (
+              <span className="text-[10px] text-text-secondary">
+                ({agents.length})
+              </span>
+            )}
           </div>
           <button
             onClick={onToggle}
             className="text-text-secondary hover:text-text-interactive transition-colors"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
-              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-            </svg>
+            <IconClose className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Agent list */}
         <div className="overflow-y-auto h-[calc(100%-52px)] p-3 space-y-2">
           {agents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-8 h-8 text-border mb-3"
-              >
-                <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" />
-              </svg>
+              <IconSparkle className="w-10 h-10 text-border mb-3" />
               <p className="text-text-secondary text-xs">No agents running</p>
               <p className="text-text-tertiary text-[10px] mt-1">
-                Agents will appear here when spawned
+                Agents will appear here when Claude spawns background workers
               </p>
             </div>
           ) : (
-            agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)
+            sortedAgents.map((agent) => <AgentCard key={agent.id} agent={agent} />)
           )}
         </div>
       </div>

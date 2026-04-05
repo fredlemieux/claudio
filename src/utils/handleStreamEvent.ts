@@ -145,10 +145,11 @@ export function handleStreamEvent(
           // Detect agent spawns — "Agent" tool_use blocks contain description, subagent_type, prompt
           if (block.name === "Agent" && eventCallbacks.onAgentUpdate && block.input) {
             const input = block.input as { description?: string; subagent_type?: string; prompt?: string; run_in_background?: boolean };
+            const agentType = input.subagent_type ?? "general-purpose";
             const agent: AgentInfo = {
               id: block.id ?? crypto.randomUUID(),
               name: input.description ?? "Agent",
-              type: input.subagent_type ?? "general-purpose",
+              type: agentType,
               status: "running",
               description: (input.prompt ?? "").slice(0, 200),
               output: "",
@@ -208,7 +209,7 @@ export function handleStreamEvent(
               type: "",
               status: result.is_error ? "failed" : "completed",
               description: "",
-              output: (result.content ?? "").slice(0, 500),
+              output: (result.content ?? "").slice(0, 2000),
               startedAt: 0,
             });
           }
