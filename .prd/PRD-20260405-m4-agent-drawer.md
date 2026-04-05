@@ -1,17 +1,17 @@
 ---
 prd: true
 id: PRD-20260405-m4-agent-drawer
-status: PLANNED
+status: COMPLETE
 mode: loop
 effort_level: Extended
 created: 2026-04-05
 updated: 2026-04-05
-iteration: 0
+iteration: 1
 maxIterations: 20
-loopStatus: null
-last_phase: PLAN
+loopStatus: completed
+last_phase: VERIFY
 failing_criteria: []
-verification_summary: "0/20"
+verification_summary: "20/20"
 parent: null
 children: []
 ---
@@ -24,9 +24,9 @@ children: []
 
 | What | State |
 |------|-------|
-| Progress | 0/20 criteria passing |
-| Phase | PLANNED |
-| Next action | Implement AgentInfo model expansion + AgentCard redesign |
+| Progress | 20/20 criteria passing |
+| Phase | COMPLETE |
+| Next action | Commit changes |
 | Blocked by | Nothing |
 
 ## CONTEXT
@@ -87,42 +87,54 @@ Animations, transitions, terminal styling, responsive behavior.
 ## IDEAL STATE CRITERIA (Verification Criteria)
 
 ### Agent Data Model
-- [ ] ISC-M4-C1: AgentInfo has optional fields for progress and ISC description | Verify: Grep: `progress.*number` in AgentDrawer.tsx
-- [ ] ISC-M4-C2: Agent output capture expanded to two thousand characters maximum | Verify: Grep: `2000` in handleStreamEvent.ts
-- [ ] ISC-M4-C3: Agent type extracted from subagent_type field in stream events | Verify: Grep: `subagent_type` in handleStreamEvent.ts
+- [x] ISC-M4-C1: AgentInfo has optional fields for progress and ISC description | Verify: Grep: `progress.*number` in AgentDrawer.tsx
+- [x] ISC-M4-C2: Agent output capture expanded to two thousand characters maximum | Verify: Grep: `2000` in handleStreamEvent.ts
+- [x] ISC-M4-C3: Agent type extracted from subagent_type field in stream events | Verify: Grep: `subagent_type` in handleStreamEvent.ts
 
 ### Agent Card UI
-- [ ] ISC-M4-C4: Each agent card displays animated indeterminate progress bar when running | Verify: Grep: `animate` in AgentDrawer.tsx
-- [ ] ISC-M4-C5: Completed agents show full green progress bar with checkmark icon | Verify: Grep: `completed.*green` in AgentDrawer.tsx
-- [ ] ISC-M4-C6: Failed agents show red progress bar with error icon | Verify: Grep: `failed.*red` in AgentDrawer.tsx
-- [ ] ISC-M4-C7: Elapsed time updates live every second via interval timer | Verify: Grep: `setInterval\|useEffect.*1000` in AgentDrawer.tsx
-- [ ] ISC-M4-C8: Agent type has distinct icon per type like Engineer Explore Research | Verify: Grep: `Engineer\|Explore\|Research` in AgentDrawer.tsx
-- [ ] ISC-M4-C9: Expanded card shows terminal-styled output with dark background and monospace | Verify: Grep: `font-mono.*bg-` in AgentDrawer.tsx
+- [x] ISC-M4-C4: Each agent card displays animated indeterminate progress bar when running | Verify: Grep: `animate` in AgentDrawer.tsx
+- [x] ISC-M4-C5: Completed agents show full green progress bar with checkmark icon | Verify: Grep: `completed.*green` in AgentDrawer.tsx
+- [x] ISC-M4-C6: Failed agents show red progress bar with error icon | Verify: Grep: `failed.*red` in AgentDrawer.tsx
+- [x] ISC-M4-C7: Elapsed time updates live every second via interval timer | Verify: Grep: `setInterval\|useEffect.*1000` in AgentDrawer.tsx
+- [x] ISC-M4-C8: Agent type has distinct icon per type like Engineer Explore Research | Verify: Grep: `Engineer\|Explore\|Research` in AgentDrawer.tsx
+- [x] ISC-M4-C9: Expanded card shows terminal-styled output with dark background and monospace | Verify: Grep: `font-mono.*bg-` in AgentDrawer.tsx
 
 ### Agent Grouping & Layout
-- [ ] ISC-M4-C10: Running agents displayed above completed and failed agents in drawer | Verify: Read: check sort/filter logic in AgentDrawer.tsx
-- [ ] ISC-M4-C11: Header shows active count like Active Agents with running number | Verify: Grep: `Active Agents\|running` in AgentDrawer.tsx
-- [ ] ISC-M4-C12: Empty state shows helpful message with sparkle icon when no agents | Verify: Read: check empty state JSX in AgentDrawer.tsx
+- [x] ISC-M4-C10: Running agents displayed above completed and failed agents in drawer | Verify: Read: check sort/filter logic in AgentDrawer.tsx
+- [x] ISC-M4-C11: Header shows active count like Active Agents with running number | Verify: Grep: `Active Agents\|running` in AgentDrawer.tsx
+- [x] ISC-M4-C12: Empty state shows helpful message with sparkle icon when no agents | Verify: Read: check empty state JSX in AgentDrawer.tsx
 
 ### Auto-Open Behavior
-- [ ] ISC-M4-C13: Drawer auto-opens when first agent spawns during a streaming session | Verify: Grep: `onAutoOpen\|setDrawerOpen` in useClaude.ts or App.tsx
-- [ ] ISC-M4-C14: Auto-open only fires once per streaming session not on every agent | Verify: Read: check guard logic (ref or flag) preventing repeated opens
+- [x] ISC-M4-C13: Drawer auto-opens when first agent spawns during a streaming session | Verify: Grep: `onAutoOpen\|setDrawerOpen` in useClaude.ts or App.tsx
+- [x] ISC-M4-C14: Auto-open only fires once per streaming session not on every agent | Verify: Read: check guard logic (ref or flag) preventing repeated opens
 
 ### Integration
-- [ ] ISC-M4-C15: TypeScript strict compilation passes with zero errors after all changes | Verify: CLI: pnpm tsc --noEmit
-- [ ] ISC-M4-C16: Agent events from real Claude stream populate drawer correctly | Verify: Read: onAgentUpdate callback wired in useClaude.ts streamCallbacks
+- [x] ISC-M4-C15: TypeScript strict compilation passes with zero errors after all changes | Verify: CLI: pnpm tsc --noEmit
+- [x] ISC-M4-C16: Agent events from real Claude stream populate drawer correctly | Verify: Read: onAgentUpdate callback wired in useClaude.ts streamCallbacks
 
 ### Storybook
-- [ ] ISC-M4-C17: Storybook story exists with running agents showing live timer simulation | Verify: Read: AgentDrawer.stories.tsx has Running story
-- [ ] ISC-M4-C18: Storybook story shows mixed states with running completed and failed | Verify: Read: AgentDrawer.stories.tsx has MixedStates story
+- [x] ISC-M4-C17: Storybook story exists with running agents showing live timer simulation | Verify: Read: AgentDrawer.stories.tsx has Running story
+- [x] ISC-M4-C18: Storybook story shows mixed states with running completed and failed | Verify: Read: AgentDrawer.stories.tsx has MixedStates story
 
 ### Anti-Criteria
-- [ ] ISC-M4-A1: No regressions to message streaming or chat rendering from changes | Verify: Read: MessageList.tsx unchanged, handleStreamEvent text/assistant cases unchanged
-- [ ] ISC-M4-A2: No new npm dependencies added to package.json for agent drawer | Verify: CLI: git diff package.json shows no new dependencies
+- [x] ISC-M4-A1: No regressions to message streaming or chat rendering from changes | Verify: Read: MessageList.tsx unchanged, handleStreamEvent text/assistant cases unchanged
+- [x] ISC-M4-A2: No new npm dependencies added to package.json for agent drawer | Verify: CLI: git diff package.json shows no new dependencies
 
 ## DECISIONS
 
-(To be filled during BUILD)
+### 2026-04-05 — Message Layout Order
+**Decision:** Assistant message content renders top-to-bottom as: (1) Text response, (2) File changes (collapsible diffs), (3) Steps (optional process view — least important).
+**Rationale:** User reads the explanation first, optionally inspects artifacts, rarely needs process steps. File changes are more important than steps but less important than the response text.
+**Rejected:** Diffs above text (wrong priority), diffs after steps (buries the artifacts).
+
+### 2026-04-05 — Shiki for Code Rendering
+**Decision:** Replace highlight.js/rehype-highlight with Shiki for all code block rendering.
+**Rationale:** VS Code TextMate grammars produce dramatically better syntax highlighting. Lazy-loads languages. Supports all VS Code themes.
+
+### 2026-04-05 — Future Milestones Identified
+- M5: Shiki code styling (replace highlight.js)
+- M6: File change display (collapsible diff cards below text, above steps)
+- M7: Rich input bar (markdown-aware, pasted code styling, bullet points)
 
 ## LOG
 
@@ -132,3 +144,10 @@ Animations, transitions, terminal styling, responsive behavior.
 - Work done: PRD created with 18 criteria + 2 anti-criteria
 - Failing: all
 - Context for next iteration: Start with AgentInfo model expansion (ISC-M4-C1,C2,C3), then AgentCard redesign (C4-C9), then grouping (C10-C12), auto-open (C13-C14), integration (C15-C16), stories (C17-C18)
+
+### Iteration 1 — 2026-04-05
+- Phase reached: VERIFY (COMPLETE)
+- Criteria progress: 20/20
+- Work done: All criteria implemented in prior session. Reconciliation verified every criterion against built code.
+- Failing: none
+- Evidence: tsc --noEmit passes, all Grep/Read checks confirm implementation, 7 Storybook stories with realistic mock data, no package.json changes, MessageList.tsx untouched
