@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
+import rehypeShiki from "@shikijs/rehype";
+import { IconCheckmark, IconCopy } from "../icons";
 import type { Components } from "react-markdown";
 
 interface MessageContentProps {
@@ -33,22 +34,17 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-border text-text-interactive hover:text-text-primary hover:bg-border-hover transition-all opacity-0 group-hover:opacity-100"
+      className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-border text-text-interactive hover:text-text-primary hover:bg-border-hover transition-all opacity-0 group-hover:opacity-100 z-10"
       title="Copy code"
     >
       {copied ? (
         <>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400">
-            <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-          </svg>
+          <IconCheckmark className="w-3 h-3 text-green-400" />
           <span className="text-green-400">Copied</span>
         </>
       ) : (
         <>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-            <path d="M5.5 3.5A1.5 1.5 0 0 1 7 2h2.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 1 .439 1.061V9.5A1.5 1.5 0 0 1 12 11V8.621a3 3 0 0 0-.879-2.121L9 4.379A3 3 0 0 0 6.879 3.5H5.5Z" />
-            <path d="M4 5a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 4 14h5a1.5 1.5 0 0 0 1.5-1.5V8.621a1.5 1.5 0 0 0-.44-1.06L7.94 5.439A1.5 1.5 0 0 0 6.878 5H4Z" />
-          </svg>
+          <IconCopy className="w-3 h-3" />
           <span>Copy</span>
         </>
       )}
@@ -68,19 +64,58 @@ function extractTextContent(node: React.ReactNode): string {
   return "";
 }
 
+/** Extract language from Shiki's class like "shiki one-dark-pro" or from data-language attr */
+function extractLanguage(props: Record<string, unknown>): string {
+  // Shiki sets data-language on the <code> element inside <pre>
+  // But at the <pre> level we can check className for language hints
+  const className = (props.className as string) || "";
+  const dataLang = (props["data-language"] as string) || "";
+  if (dataLang) return dataLang;
+  // Fallback: check children for data-language
+  return className.replace(/shiki|one-dark-pro/g, "").trim();
+}
+
+/** Walk children to find data-language from nested <code> */
+function findLanguageInChildren(children: React.ReactNode): string {
+  if (!children) return "";
+  const arr = Array.isArray(children) ? children : [children];
+  for (const child of arr) {
+    if (child && typeof child === "object" && "props" in child) {
+      const el = child as React.ReactElement<Record<string, unknown>>;
+      const lang = el.props["data-language"];
+      if (typeof lang === "string" && lang) return lang;
+    }
+  }
+  return "";
+}
+
 const components: Components = {
-  pre({ children }) {
+  pre({ children, ...props }) {
     const text = extractTextContent(children);
+    const lang = extractLanguage(props) || findLanguageInChildren(children);
+
     return (
-      <pre className="group relative bg-base rounded-lg p-4 my-2 overflow-x-auto text-xs border border-border">
+      <div className="group relative my-2 rounded-lg border border-border overflow-hidden shiki-wrapper">
+        {/* Language badge */}
+        {lang && (
+          <span className="absolute top-0 right-0 text-[10px] text-text-secondary bg-surface-2/80 backdrop-blur-sm px-2 py-0.5 rounded-bl z-10 group-hover:right-16 transition-all">
+            {lang}
+          </span>
+        )}
         <CopyButton text={text} />
-        {children}
-      </pre>
+        <pre
+          {...(props as React.HTMLAttributes<HTMLPreElement>)}
+          className="!bg-base !rounded-lg !p-0 overflow-x-auto text-xs shiki-pre"
+        >
+          {children}
+        </pre>
+      </div>
     );
   },
   code({ className, children, ...props }) {
-    const isInline = !className;
-    if (isInline) {
+    // Inline code (no className from Shiki)
+    const isShikiBlock = className?.includes("shiki") || (props as Record<string, unknown>)["data-language"];
+    if (!className && !isShikiBlock) {
       return (
         <code
           className="bg-surface-hover text-blue-300 px-1.5 py-0.5 rounded text-xs"
@@ -90,18 +125,11 @@ const components: Components = {
         </code>
       );
     }
-    const language = className?.replace("language-", "") || "";
+    // Block code — rendered by Shiki with inline styles, just pass through
     return (
-      <div className="relative">
-        {language && (
-          <span className="absolute top-0 right-0 text-[10px] text-text-secondary bg-surface-2 px-2 py-0.5 rounded-bl group-hover:right-16">
-            {language}
-          </span>
-        )}
-        <code className={className} {...props}>
-          {children}
-        </code>
-      </div>
+      <code className={`${className || ""} shiki-code`} {...props}>
+        {children}
+      </code>
     );
   },
   h1({ children }) {
@@ -168,6 +196,16 @@ const components: Components = {
   },
 };
 
+const rehypeShikiOptions = {
+  theme: "one-dark-pro",
+  // Only load commonly-used languages to keep bundle smaller
+  langs: [
+    "typescript", "javascript", "tsx", "jsx", "json", "html", "css",
+    "python", "bash", "shell", "rust", "go", "sql", "yaml", "toml",
+    "markdown", "diff", "xml", "graphql", "dockerfile",
+  ],
+};
+
 export function MessageContent({ content, role }: MessageContentProps) {
   if (role === "user") {
     return <span className="whitespace-pre-wrap">{content}</span>;
@@ -177,7 +215,7 @@ export function MessageContent({ content, role }: MessageContentProps) {
     <div className="prose prose-invert prose-sm max-w-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={[[rehypeShiki, rehypeShikiOptions]]}
         components={components}
       >
         {content}

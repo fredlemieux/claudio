@@ -113,3 +113,63 @@ pre::-webkit-scrollbar-thumb {
 .animate-fade-in-up {
   animation: fadeInUp 0.2s ease-out;
 }
+
+/* Indeterminate progress bar animation for running agents */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+/* ═══ Shiki Code Block Styling ═══ */
+
+/* Override Shiki's inline background to use our design tokens */
+.shiki-wrapper .shiki-pre,
+.shiki-wrapper pre.shiki {
+  background-color: var(--color-base) !important;
+  margin: 0 !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Line numbers via CSS counter */
+.shiki-wrapper .shiki code {
+  counter-reset: line;
+  display: block;
+}
+
+.shiki-wrapper .shiki code > .line {
+  display: inline-block;
+  width: 100%;
+  padding-left: 2.5rem;
+  position: relative;
+}
+
+.shiki-wrapper .shiki code > .line::before {
+  counter-increment: line;
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 1.75rem;
+  text-align: right;
+  color: var(--color-text-tertiary);
+  font-size: 0.65rem;
+  user-select: none;
+  opacity: 0.6;
+}
+
+/* Hover highlight on lines */
+.shiki-wrapper .shiki code > .line:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Remove Shiki's default code background */
+.shiki-wrapper .shiki code {
+  background-color: transparent !important;
+}

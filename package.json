@@ -12,16 +12,16 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@shikijs/rehype": "^4.0.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2.3.5",
-    "highlight.js": "^11.11.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
-    "rehype-highlight": "^7.0.2",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "shiki": "^4.0.2"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.6.14",
