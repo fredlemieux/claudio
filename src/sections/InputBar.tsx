@@ -15,6 +15,9 @@ interface InputBarProps {
   input: string;
   onInputChange: (value: string) => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  promptQueue: string[];
+  onEnqueue: (text: string) => void;
+  onRemoveQueued: (index: number) => void;
 }
 
 export function InputBar({
@@ -27,6 +30,9 @@ export function InputBar({
   input,
   onInputChange,
   inputRef,
+  promptQueue,
+  onEnqueue,
+  onRemoveQueued,
 }: InputBarProps) {
   const [slashIndex, setSlashIndex] = useState(0);
 
@@ -83,7 +89,12 @@ export function InputBar({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSend(input);
+      if (!input.trim()) return;
+      if (isStreaming) {
+        onEnqueue(input.trim());
+      } else {
+        onSend(input);
+      }
       onInputChange("");
       if (inputRef.current) {
         inputRef.current.style.height = "auto";
@@ -100,6 +111,27 @@ export function InputBar({
         visible={showSlash}
       />
 
+      {promptQueue.length > 0 && (
+        <div className="flex flex-col gap-1 mb-2">
+          {promptQueue.map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 bg-surface-2 border border-border rounded-lg px-3 py-1.5 text-xs"
+            >
+              <span className="text-text-tertiary font-mono shrink-0 select-none">#{i + 1}</span>
+              <span className="flex-1 truncate text-text-secondary">{item}</span>
+              <button
+                onClick={() => onRemoveQueued(i)}
+                className="text-text-tertiary hover:text-red-400 transition-colors shrink-0 text-sm leading-none"
+                title="Remove from queue"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-2xl px-4 py-3">
         <textarea
           ref={inputRef}
@@ -112,13 +144,24 @@ export function InputBar({
           style={{ maxHeight: "120px" }}
         />
         {isStreaming ? (
-          <button
-            onClick={onStop}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shrink-0"
-            title="Stop (Esc)"
-          >
-            <IconStop className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {input.trim() && (
+              <button
+                onClick={() => { onEnqueue(input.trim()); onInputChange(""); if (inputRef.current) inputRef.current.style.height = "auto"; }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 border border-border text-text-secondary hover:text-blue-400 hover:border-blue-400 transition-colors"
+                title="Queue prompt"
+              >
+                <IconSend className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onStop}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
+              title="Stop (Esc)"
+            >
+              <IconStop className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => { onSend(input); onInputChange(""); }}

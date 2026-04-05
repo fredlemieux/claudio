@@ -264,18 +264,34 @@ export function useClaude({
       onAgentUpdate: (agent) => setAgents((prev) => {
         const idx = prev.findIndex((a) => a.id === agent.id);
         if (idx >= 0) {
-          // Merge — keep existing fields, update status/output
+          // Merge — keep existing fields, update changed ones
           const existing = prev[idx];
           const updated = [...prev];
+          // Append new tool calls to existing list
+          const mergedToolCalls = agent.toolCalls?.length
+            ? [...(existing.toolCalls ?? []), ...agent.toolCalls]
+            : existing.toolCalls;
+          // Update description from task_progress (shows current activity)
+          const mergedDescription = agent.description || existing.description;
           updated[idx] = {
             ...existing,
             status: agent.status,
+            description: mergedDescription,
             output: agent.output || existing.output,
+            elapsedSeconds: agent.elapsedSeconds ?? existing.elapsedSeconds,
+            completedAt: (agent.status === "completed" || agent.status === "failed")
+              ? Date.now()
+              : existing.completedAt,
+            toolCalls: mergedToolCalls,
           };
           return updated;
         }
-        // New agent
-        return [...prev, agent];
+        // Only create new agent entries from Agent tool_use events (which have name + type set)
+        // Skip updates for unknown IDs (task_progress/task_notification/tool_result for non-agents)
+        if (agent.name && agent.type) {
+          return [...prev, agent];
+        }
+        return prev;
       }),
     };
 

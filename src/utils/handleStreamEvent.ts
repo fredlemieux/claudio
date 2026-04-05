@@ -67,6 +67,42 @@ export function handleStreamEvent(
           summary: `Session init — model: ${event.model}`,
           rawJson: rawJsonStr,
         });
+      } else if (event.subtype === "task_progress" && eventCallbacks.onAgentUpdate) {
+        // Subagent activity — update agent with current tool description
+        const toolUseId = event.tool_use_id as string | undefined;
+        const description = event.description as string | undefined;
+        if (toolUseId && description) {
+          // Extract tool name from description like "Reading ~/dev/claudio/src/App.tsx"
+          const toolName = description.split(" ")[0]?.replace(/ing$/, "") ?? "Tool";
+          eventCallbacks.onAgentUpdate({
+            id: toolUseId,
+            name: "",
+            type: "",
+            status: "running",
+            description: description.slice(0, 200),
+            output: "",
+            startedAt: 0,
+            toolCalls: [{ name: toolName, timestamp: Date.now() }],
+          });
+          eventCallbacks.addLog("debug", "system", `task_progress: ${toolUseId} → ${description.slice(0, 100)}`);
+        }
+      } else if (event.subtype === "task_notification" && eventCallbacks.onAgentUpdate) {
+        // Subagent completed/failed
+        const toolUseId = event.tool_use_id as string | undefined;
+        const status = event.status as string | undefined;
+        const outputFile = event.output_file as string | undefined;
+        if (toolUseId && status) {
+          eventCallbacks.onAgentUpdate({
+            id: toolUseId,
+            name: "",
+            type: "",
+            status: status === "completed" ? "completed" : "failed",
+            description: "",
+            output: outputFile ? `Output: ${outputFile}` : "",
+            startedAt: 0,
+          });
+          eventCallbacks.addLog("info", "system", `task_notification: ${toolUseId} → ${status}`);
+        }
       } else {
         eventCallbacks.addLog("debug", "system", `${event.subtype}: ${JSON.stringify(event).slice(0, 200)}`);
       }
@@ -160,14 +196,17 @@ export function handleStreamEvent(
           if (block.name === "Agent" && eventCallbacks.onAgentUpdate && block.input) {
             const input = block.input as { description?: string; subagent_type?: string; prompt?: string; run_in_background?: boolean };
             const agentType = input.subagent_type ?? "general-purpose";
+            const fullPrompt = input.prompt ?? "";
             const agent: AgentInfo = {
               id: block.id ?? crypto.randomUUID(),
               name: input.description ?? "Agent",
               type: agentType,
               status: "running",
-              description: (input.prompt ?? "").slice(0, 200),
+              description: fullPrompt.slice(0, 200),
+              prompt: fullPrompt,
               output: "",
               startedAt: Date.now(),
+              toolCalls: [],
             };
             eventCallbacks.addLog("info", "app", `[Agent] Spawned: ${agent.name} (${agent.type})`);
             eventCallbacks.onAgentUpdate(agent);
@@ -216,11 +255,13 @@ export function handleStreamEvent(
             summary: result.is_error ? `ERROR: ${preview}` : preview,
             rawJson: rawJsonStr,
           });
-          // Update agent status when its tool_result arrives
+          // Update agent output when its tool_result arrives
+          // Note: only updates existing agents (useClaude merge skips unknown IDs)
+          // Status is set by task_notification, not tool_result — avoids premature completion
           if (result.tool_use_id && eventCallbacks.onAgentUpdate) {
             eventCallbacks.onAgentUpdate({
               id: result.tool_use_id,
-              name: "",  // useClaude merges by id, keeping existing name
+              name: "",
               type: "",
               status: result.is_error ? "failed" : "completed",
               description: "",

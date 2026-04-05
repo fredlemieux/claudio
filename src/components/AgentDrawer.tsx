@@ -4,6 +4,11 @@ import {
   IconCheckmark, IconXMark, IconChevronDown, IconClose,
 } from "../icons";
 
+export interface AgentToolCall {
+  name: string;
+  timestamp: number;
+}
+
 export interface AgentInfo {
   id: string;
   name: string;
@@ -12,8 +17,14 @@ export interface AgentInfo {
   description: string;
   output: string;
   startedAt: number;
-  /** Optional progress 0-100 (not available from stream — use for future enhancement) */
-  progress?: number;
+  /** Full prompt given to the agent */
+  prompt?: string;
+  /** Last known elapsed seconds from tool_progress heartbeats */
+  elapsedSeconds?: number;
+  /** Timestamp when agent completed/failed */
+  completedAt?: number;
+  /** Tool calls observed via tool_progress events */
+  toolCalls?: AgentToolCall[];
   /** Optional ISC criterion description shown as subtitle */
   iscDescription?: string;
 }
@@ -105,9 +116,139 @@ function StatusIcon({ status }: { status: AgentInfo["status"] }) {
   return <IconXMark className="w-4 h-4 text-red-400 shrink-0" />;
 }
 
+// ─── Agent Detail Modal ─────────────────────────────────────────────
+
+function AgentDetailModal({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
+  const outputRef = useRef<HTMLPreElement>(null);
+  const elapsedStr = useElapsedTime(agent.startedAt, agent.status === "running");
+  const duration = agent.completedAt
+    ? `${((agent.completedAt - agent.startedAt) / 1000).toFixed(1)}s`
+    : elapsedStr;
+
+  useEffect(() => {
+    if (agent.status === "running" && outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [agent.status, agent.output]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const statusColor = {
+    running: "text-blue-400",
+    completed: "text-green-400",
+    failed: "text-red-400",
+  }[agent.status];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+      {/* Modal */}
+      <div
+        className="relative w-[600px] max-w-[90vw] max-h-[80vh] bg-surface-1 border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className={statusColor}>{getTypeIcon(agent.type)}</span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  agent.status === "running" ? "text-blue-300 bg-blue-400/10" :
+                  agent.status === "completed" ? "text-green-300 bg-green-400/10" :
+                  "text-red-300 bg-red-400/10"
+                }`}>
+                  {agent.type}
+                </span>
+                <span className={`text-[10px] ${statusColor} font-medium`}>
+                  {agent.status === "running" ? "Running" : agent.status === "completed" ? "Completed" : "Failed"}
+                </span>
+                <span className="text-[10px] text-text-secondary tabular-nums">{duration}</span>
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-interactive transition-colors">
+            <IconClose className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          {/* Prompt section */}
+          {agent.prompt && (
+            <div>
+              <h4 className="text-[10px] text-text-tertiary font-medium uppercase tracking-wider mb-1.5">Prompt</h4>
+              <div className="bg-base/80 border border-border rounded-lg p-3">
+                <p className="text-xs text-text-interactive whitespace-pre-wrap leading-relaxed">
+                  {agent.prompt}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Tool calls timeline */}
+          {agent.toolCalls && agent.toolCalls.length > 0 && (
+            <div>
+              <h4 className="text-[10px] text-text-tertiary font-medium uppercase tracking-wider mb-1.5">
+                Activity ({agent.toolCalls.length} tool calls)
+              </h4>
+              <div className="bg-base/80 border border-border rounded-lg p-3 space-y-1">
+                {agent.toolCalls.map((tc, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[11px]">
+                    <span className="text-text-tertiary tabular-nums shrink-0">
+                      {((tc.timestamp - agent.startedAt) / 1000).toFixed(1)}s
+                    </span>
+                    <span className="text-blue-400 font-mono">{tc.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Output section */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <h4 className="text-[10px] text-text-tertiary font-medium uppercase tracking-wider">Output</h4>
+              {agent.status === "running" && (
+                <span className="flex items-center gap-1 text-[10px] text-blue-400">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  live
+                </span>
+              )}
+            </div>
+            <pre
+              ref={outputRef}
+              className="text-[11px] text-text-interactive bg-base/80 border border-border rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto"
+            >
+              {agent.output || (
+                <span className="text-text-tertiary italic">
+                  {agent.status === "running" ? "Waiting for output..." : "No output captured"}
+                </span>
+              )}
+            </pre>
+          </div>
+        </div>
+
+        {/* Progress bar footer */}
+        <div className="px-5 py-3 border-t border-border">
+          <ProgressBar status={agent.status} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Agent Card ─────────────────────────────────────────────────────
 
-function AgentCard({ agent }: { agent: AgentInfo }) {
+function AgentCard({ agent, onSelect }: { agent: AgentInfo; onSelect: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const outputRef = useRef<HTMLPreElement>(null);
   const elapsedStr = useElapsedTime(agent.startedAt, agent.status === "running");
@@ -166,6 +307,15 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
           {/* Status icon */}
           <StatusIcon status={agent.status} />
 
+          {/* Detail button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            className="text-text-tertiary hover:text-text-interactive transition-colors p-0.5"
+            title="View details"
+          >
+            <IconMagnifyingGlass className="w-3 h-3" />
+          </button>
+
           {/* Chevron */}
           <IconChevronDown className={`w-3 h-3 text-text-secondary transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
         </div>
@@ -207,6 +357,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
 // ─── Main Drawer ────────────────────────────────────────────────────
 
 export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const runningAgents = agents.filter((a) => a.status === "running");
   const completedAgents = agents.filter((a) => a.status === "completed");
   const failedAgents = agents.filter((a) => a.status === "failed");
@@ -215,8 +366,15 @@ export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
   // Sort: running first, then failed, then completed
   const sortedAgents = [...runningAgents, ...failedAgents, ...completedAgents];
 
+  const selectedAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) : null;
+
   return (
     <>
+      {/* Agent detail modal */}
+      {selectedAgent && (
+        <AgentDetailModal agent={selectedAgent} onClose={() => setSelectedAgentId(null)} />
+      )}
+
       {/* Toggle button (always visible) */}
       <button
         onClick={onToggle}
@@ -277,7 +435,13 @@ export function AgentDrawer({ agents, isOpen, onToggle }: AgentDrawerProps) {
               </p>
             </div>
           ) : (
-            sortedAgents.map((agent) => <AgentCard key={agent.id} agent={agent} />)
+            sortedAgents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onSelect={() => setSelectedAgentId(agent.id)}
+              />
+            ))
           )}
         </div>
       </div>

@@ -30,9 +30,29 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [algoVisible, setAlgoVisible] = useState(false);
   const [iscVisible, setIscVisible] = useState(false);
+  const [promptQueue, setPromptQueue] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = activeSession?.messages || [];
+
+  // Auto-send queued prompts when streaming finishes
+  const prevIsStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevIsStreamingRef.current && !claude.isStreaming) {
+      setPromptQueue((q) => {
+        if (q.length === 0) return q;
+        const [next, ...rest] = q;
+        claude.sendMessage(next);
+        return rest;
+      });
+    }
+    prevIsStreamingRef.current = claude.isStreaming;
+  }, [claude.isStreaming]);
+
+  // Clear queue when switching sessions
+  useEffect(() => {
+    setPromptQueue([]);
+  }, [activeSessionId]);
 
   // Auto-open agent drawer on first agent spawn per streaming session
   const autoOpenFiredRef = useRef(false);
@@ -217,6 +237,9 @@ function App() {
         input={input}
         onInputChange={setInput}
         inputRef={inputRef}
+        promptQueue={promptQueue}
+        onEnqueue={(text) => setPromptQueue((q) => [...q, text])}
+        onRemoveQueued={(i) => setPromptQueue((q) => q.filter((_, idx) => idx !== i))}
       />
 
       {/* Debug console at bottom — in-flow, pushes everything up when open */}

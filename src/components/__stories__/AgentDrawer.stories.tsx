@@ -25,6 +25,7 @@ const runningEngineer: AgentInfo = {
   type: "Engineer",
   status: "running",
   description: "Implementing JWT validation middleware with refresh token rotation and session management",
+  prompt: "CONTEXT: User needs JWT validation middleware for the Tauri desktop app.\nTASK: Implement JWT validation with refresh token rotation, session management, and proper error handling.\nEFFORT LEVEL: Complete within 120 seconds.\nOUTPUT: Working middleware with tests passing.",
   output: `[4:28] > Reading existing auth code...
 [4:29] > Found 3 middleware files in src/middleware/
 [4:30] > Creating JWTValidator class...
@@ -33,6 +34,15 @@ const runningEngineer: AgentInfo = {
 _`,
   startedAt: Date.now() - 272000, // 4m 32s ago
   iscDescription: "ISC: Code compiles with zero warnings",
+  toolCalls: [
+    { name: "Glob", timestamp: Date.now() - 268000 },
+    { name: "Read", timestamp: Date.now() - 265000 },
+    { name: "Read", timestamp: Date.now() - 260000 },
+    { name: "Write", timestamp: Date.now() - 240000 },
+    { name: "Bash", timestamp: Date.now() - 220000 },
+    { name: "Edit", timestamp: Date.now() - 200000 },
+    { name: "Bash", timestamp: Date.now() - 180000 },
+  ],
 };
 
 const runningExplore: AgentInfo = {
@@ -63,11 +73,20 @@ const completedArchitect: AgentInfo = {
   type: "Architect",
   status: "completed",
   description: "Mapped the full component hierarchy and data flow for the settings panel redesign",
+  prompt: "CONTEXT: Settings panel redesign in progress.\nTASK: Map the full component hierarchy and data flow. Identify shared patterns and recommend extraction points.\nOUTPUT: Component tree with dependency graph.",
   output: `Component tree analysis complete.
 Found 23 components across 4 feature domains.
 Recommended: Extract shared hooks into src/hooks/shared/
 No circular dependencies detected.`,
   startedAt: Date.now() - 180000,
+  completedAt: Date.now() - 120000,
+  toolCalls: [
+    { name: "Glob", timestamp: Date.now() - 178000 },
+    { name: "Read", timestamp: Date.now() - 175000 },
+    { name: "Read", timestamp: Date.now() - 170000 },
+    { name: "Grep", timestamp: Date.now() - 165000 },
+    { name: "Read", timestamp: Date.now() - 155000 },
+  ],
 };
 
 const completedEngineer: AgentInfo = {

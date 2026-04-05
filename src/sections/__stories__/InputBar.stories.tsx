@@ -27,6 +27,7 @@ const sampleSkills: Skill[] = [
 
 const InteractiveInputBar = () => {
   const [input, setInput] = useState("");
+  const [queue, setQueue] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   return (
     <InputBar
@@ -39,6 +40,9 @@ const InteractiveInputBar = () => {
       input={input}
       onInputChange={setInput}
       inputRef={inputRef}
+      promptQueue={queue}
+      onEnqueue={(t) => setQueue((q) => [...q, t])}
+      onRemoveQueued={(i) => setQueue((q) => q.filter((_, idx) => idx !== i))}
     />
   );
 };
@@ -49,6 +53,7 @@ export const Default: Story = {
 
 const StreamingInputBar = () => {
   const [input, setInput] = useState("");
+  const [queue, setQueue] = useState<string[]>(["What is the meaning of life?", "And what about consciousness?"]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   return (
     <InputBar
@@ -61,6 +66,9 @@ const StreamingInputBar = () => {
       input={input}
       onInputChange={setInput}
       inputRef={inputRef}
+      promptQueue={queue}
+      onEnqueue={(t) => setQueue((q) => [...q, t])}
+      onRemoveQueued={(i) => setQueue((q) => q.filter((_, idx) => idx !== i))}
     />
   );
 };
@@ -83,6 +91,9 @@ const SlashInputBar = () => {
       input={input}
       onInputChange={setInput}
       inputRef={inputRef}
+      promptQueue={[]}
+      onEnqueue={fn()}
+      onRemoveQueued={fn()}
     />
   );
 };
