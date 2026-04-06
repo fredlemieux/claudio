@@ -2,7 +2,9 @@
 
 A desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). All the power, none of the terminal.
 
-<!-- TODO: Hero screenshot of Claudio in action — full chat view with agent drawer open -->
+<p align="center">
+  <img src="docs/mockups/Hero.gif" alt="Hero animation" />
+</p>
 
 ## Why
 
