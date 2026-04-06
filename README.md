@@ -10,6 +10,8 @@ Claude Code can do things that no graphical AI interface — not ChatGPT, not Cl
 
 I built Claudio so that anyone can access the power of Claude Code without needing to know what a CLI is. It's not a replacement for the terminal — I love the terminal. It's a window into Claude Code for the people who don't.
 
+Claudio is built around the [PAI Algorithm](https://github.com/danielmiessler/PAI) by Daniel Miessler — a systematic approach to problem-solving that uses Ideal State Criteria, phased execution, and verification to get consistently excellent results. PAI genuinely changed how I work. The UI is designed to visualize that workflow: algorithm phases, ISC criteria tracking, agent orchestration. It will still work without PAI, but the agent drawer, algorithm tracker, and ISC panels are built with that context in mind, so some features may feel less relevant outside of it.
+
 You type a message, Claudio spawns `claude` under the hood, streams the JSON output, and renders it in a real UI with markdown, syntax highlighting, agent tracking, and algorithm visualization.
 
 ## What it looks like
