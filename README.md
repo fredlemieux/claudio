@@ -6,11 +6,11 @@ A desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ## Why
 
-I use Claude Code every day. It's genuinely one of the best tools I've ever used for software development. But it lives in the terminal, and sometimes I want a proper chat interface — something I can keep open, glance at, see what my agents are doing without scrolling through terminal output.
+Claude Code can do things that no graphical AI interface — not ChatGPT, not Claude.ai — can touch. Agents, tools, file access, project context, hooks, the whole runtime. But it lives in the terminal. And every time I tried to show someone what it could do, the terminal was a wall. Non-technical people saw a blinking cursor and checked out before seeing any of the magic.
 
-That's Claudio. It's not a replacement for Claude Code. It's a window into it. You type a message, Claudio spawns `claude` under the hood, streams the JSON output, and renders it in a real UI with markdown, syntax highlighting, agent tracking, and algorithm visualization.
+I built Claudio so that anyone can access the power of Claude Code without needing to know what a CLI is. It's not a replacement for the terminal — I love the terminal. It's a window into Claude Code for the people who don't.
 
-The name? Claude + audio + a nod to the Roman Emperor. Named by me, approved by my AI.
+You type a message, Claudio spawns `claude` under the hood, streams the JSON output, and renders it in a real UI with markdown, syntax highlighting, agent tracking, and algorithm visualization.
 
 ## What it looks like
 
@@ -90,7 +90,7 @@ The stream parsing is a pure function with zero dependencies on React or Tauri. 
 | Syntax highlighting | Shiki |
 | Markdown | react-markdown + remark-gfm |
 | Build | Vite 7 |
-| Testing | Vitest (92 tests — unit + E2E pipeline) |
+| Testing | Vitest (117 tests — unit + E2E pipeline) |
 | Stories | Storybook 8 |
 
 ## Testing
@@ -149,7 +149,7 @@ This is early and actively developed. What works:
 - Algorithm phase visualization and ISC criteria tracking
 - Session persistence and management
 - Debug console with full stream visibility
-- 92 automated tests
+- 117 automated tests
 
 What's coming:
 
@@ -176,4 +176,4 @@ MIT
 
 ## Name
 
-**Claudio** — Claude + audio + a nod to Emperor Claudius. Built by Fred, with Greg.
+**Claudio** — Claude I/O. Getting stuff in and out of Claude. Also a nod to Emperor Claudius. Built by Fred, with Greg.
