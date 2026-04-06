@@ -14,6 +14,7 @@ import { TitleBar } from "./sections/TitleBar";
 import { WelcomeScreen } from "./sections/WelcomeScreen";
 import { MessageList } from "./sections/MessageList";
 import { InputBar } from "./sections/InputBar";
+import { usePromptQueue } from "./hooks/usePromptQueue";
 import "./App.css";
 
 function App() {
@@ -31,7 +32,7 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [algoVisible, setAlgoVisible] = useState(false);
   const [iscVisible, setIscVisible] = useState(false);
-  const [promptQueue, setPromptQueue] = useState<string[]>([]);
+  const promptQ = usePromptQueue();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = activeSession?.messages || [];
@@ -40,19 +41,15 @@ function App() {
   const prevIsStreamingRef = useRef(false);
   useEffect(() => {
     if (prevIsStreamingRef.current && !claude.isStreaming) {
-      setPromptQueue((q) => {
-        if (q.length === 0) return q;
-        const [next, ...rest] = q;
-        claude.sendMessage(next);
-        return rest;
-      });
+      const next = promptQ.dequeue();
+      if (next) claude.sendMessage(next);
     }
     prevIsStreamingRef.current = claude.isStreaming;
   }, [claude.isStreaming]);
 
   // Clear queue when switching sessions
   useEffect(() => {
-    setPromptQueue([]);
+    promptQ.clear();
   }, [activeSessionId]);
 
   // Auto-open agent drawer on first agent spawn per streaming session
@@ -238,9 +235,9 @@ function App() {
         input={input}
         onInputChange={setInput}
         inputRef={inputRef}
-        promptQueue={promptQueue}
-        onEnqueue={(text) => setPromptQueue((q) => [...q, text])}
-        onRemoveQueued={(i) => setPromptQueue((q) => q.filter((_, idx) => idx !== i))}
+        promptQueue={promptQ.queue}
+        onEnqueue={promptQ.enqueue}
+        onRemoveQueued={promptQ.remove}
       />
 
       {/* Debug console at bottom — in-flow, pushes everything up when open */}
