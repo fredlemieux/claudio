@@ -123,6 +123,7 @@ export function useClaude({
     updateMessages(sessionId, latestMessages);
     setIsStreaming(true);
     setToolCalls([]);
+    resetAgents();
 
     const buf = createStreamBuffer((content, steps) => {
       latestMessages = latestMessages.map((m) =>
@@ -242,7 +243,7 @@ export function useClaude({
       setIsStreaming(false);
       setDebugVisible(true);
     }
-  }, [isStreaming, activeSessionId, activeSession, sessions, createSession, updateMessages, setClaudeSessionId, model, addLog, setAlgoPhases, updateCriteria, updateCriteriaStatus, handleAgentEvent, setDebugVisible, createCommand]);
+  }, [isStreaming, activeSessionId, activeSession, sessions, createSession, updateMessages, setClaudeSessionId, model, addLog, setAlgoPhases, updateCriteria, updateCriteriaStatus, handleAgentEvent, resetAgents, setDebugVisible, createCommand]);
 
   const answerQuestion = useCallback((answer: string) => {
     if (pendingQuestion) {
