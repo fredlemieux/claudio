@@ -33,6 +33,8 @@ const InteractiveInputBar = () => {
     <InputBar
       skills={sampleSkills}
       isStreaming={false}
+      escapeArmed={false}
+      questionActive={false}
       sidebarOpen={false}
       drawerOpen={false}
       onSend={fn()}
@@ -59,6 +61,8 @@ const StreamingInputBar = () => {
     <InputBar
       skills={sampleSkills}
       isStreaming={true}
+      escapeArmed={false}
+      questionActive={false}
       sidebarOpen={false}
       drawerOpen={false}
       onSend={fn()}
@@ -84,6 +88,8 @@ const SlashInputBar = () => {
     <InputBar
       skills={sampleSkills}
       isStreaming={false}
+      escapeArmed={false}
+      questionActive={false}
       sidebarOpen={false}
       drawerOpen={false}
       onSend={fn()}

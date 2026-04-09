@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "./layout";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SkillPalette } from "./components/SkillPalette";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { AlgorithmTracker } from "./components/AlgorithmTracker";
-import { ISCPanel } from "./components/ISCPanel";
 import { DebugConsole } from "./components/DebugConsole";
 import { SettingsPanel, useSettings } from "./components/SettingsPanel";
+import { detectQuestionInText } from "./components/SelectionPrompt";
 import { useSkills } from "./hooks/useSkills";
 import { useSessions } from "./hooks/useSessions";
 import { useClaude } from "./hooks/useClaude";
@@ -15,7 +15,10 @@ import { WelcomeScreen } from "./sections/WelcomeScreen";
 import { MessageList } from "./sections/MessageList";
 import { InputBar } from "./sections/InputBar";
 import { usePromptQueue } from "./hooks/usePromptQueue";
+import { ContextMeter, estimateTokens } from "./components/ContextMeter";
 import "./App.css";
+
+type DrawerTab = "agents" | "isc";
 
 function App() {
   const sessionState = useSessions();
@@ -29,13 +32,43 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>("isc");
   const [algoVisible, setAlgoVisible] = useState(false);
-  const [iscVisible, setIscVisible] = useState(false);
+  const [escapeArmed, setEscapeArmed] = useState(false);
+  const escapeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dismissedQuestionId, setDismissedQuestionId] = useState<string | null>(null);
   const promptQ = usePromptQueue();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = activeSession?.messages || [];
+  const ctxTokens = useMemo(() => estimateTokens(messages), [messages]);
+
+  // Detect inline question patterns in the last completed assistant message
+  const textDetectedQuestion = useMemo(() => {
+    if (claude.isStreaming) return null;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant" || !lastMsg.content) return null;
+    return detectQuestionInText(lastMsg.content, lastMsg.id);
+  }, [messages, claude.isStreaming]);
+
+  // Tool-detected takes priority; text-detected is used unless dismissed
+  const activeQuestion = claude.pendingQuestion ??
+    (textDetectedQuestion?.id !== dismissedQuestionId ? textDetectedQuestion : null);
+
+  const handleCancelQuestion = useCallback(() => {
+    if (textDetectedQuestion) setDismissedQuestionId(textDetectedQuestion.id);
+    // For tool questions: dismissing just hides the UI; Claude continues waiting
+    // (in practice the hook handles those before they reach this UI)
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [textDetectedQuestion]);
+
+  // Clear dismissed state when a new question appears
+  useEffect(() => {
+    if (activeQuestion && activeQuestion.id !== dismissedQuestionId) {
+      setDismissedQuestionId(null);
+    }
+  }, [activeQuestion?.id]);
 
   // Auto-send queued prompts when streaming finishes
   const prevIsStreamingRef = useRef(false);
@@ -52,21 +85,37 @@ function App() {
     promptQ.clear();
   }, [activeSessionId]);
 
-  // Auto-open agent drawer on first agent spawn per streaming session
-  const autoOpenFiredRef = useRef(false);
+  // Auto-open drawer and switch tab when agents spawn
+  const autoOpenAgentRef = useRef(false);
   useEffect(() => {
-    // Reset flag when streaming stops
     if (!claude.isStreaming) {
-      autoOpenFiredRef.current = false;
+      autoOpenAgentRef.current = false;
     }
   }, [claude.isStreaming]);
 
   useEffect(() => {
-    if (claude.agents.length > 0 && claude.isStreaming && !autoOpenFiredRef.current && !drawerOpen) {
-      autoOpenFiredRef.current = true;
+    if (claude.agents.length > 0 && claude.isStreaming && !autoOpenAgentRef.current) {
+      autoOpenAgentRef.current = true;
       setDrawerOpen(true);
+      setDrawerTab("agents");
     }
-  }, [claude.agents.length, claude.isStreaming, drawerOpen]);
+  }, [claude.agents.length, claude.isStreaming]);
+
+  // Auto-open drawer and switch tab when ISC criteria arrive
+  const autoOpenISCRef = useRef(false);
+  useEffect(() => {
+    if (!claude.isStreaming) {
+      autoOpenISCRef.current = false;
+    }
+  }, [claude.isStreaming]);
+
+  useEffect(() => {
+    if (claude.algoCriteria.length > 0 && claude.isStreaming && !autoOpenISCRef.current && claude.agents.length === 0) {
+      autoOpenISCRef.current = true;
+      setDrawerOpen(true);
+      setDrawerTab("isc");
+    }
+  }, [claude.algoCriteria.length, claude.isStreaming, claude.agents.length]);
 
   const handleNewChat = useCallback(() => {
     createSession();
@@ -92,13 +141,32 @@ function App() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Disarm escape when streaming stops
+  useEffect(() => {
+    if (!claude.isStreaming && escapeArmed) {
+      setEscapeArmed(false);
+      if (escapeTimerRef.current) clearTimeout(escapeTimerRef.current);
+    }
+  }, [claude.isStreaming, escapeArmed]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setPaletteOpen((o) => !o); }
       if ((e.metaKey || e.ctrlKey) && e.key === ",") { e.preventDefault(); setSettingsOpen((o) => !o); }
       if ((e.metaKey || e.ctrlKey) && e.key === "n") { e.preventDefault(); handleNewChat(); }
-      if (e.key === "Escape" && claude.isStreaming) { e.preventDefault(); claude.stopStreaming(); }
+      if (e.key === "Escape" && claude.isStreaming) {
+        e.preventDefault();
+        setEscapeArmed((armed) => {
+          if (armed) {
+            claude.stopStreaming();
+            if (escapeTimerRef.current) clearTimeout(escapeTimerRef.current);
+            return false;
+          }
+          escapeTimerRef.current = setTimeout(() => setEscapeArmed(false), 1500);
+          return true;
+        });
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -139,45 +207,19 @@ function App() {
           toolCalls={claude.toolCalls}
           sidebarOpen={sidebarOpen}
           drawerOpen={drawerOpen}
+          algoPhases={claude.algoPhases}
+          activeQuestion={activeQuestion}
+          onAnswerQuestion={claude.answerQuestion}
+          onCancelQuestion={handleCancelQuestion}
+          onSendMessage={claude.sendMessage}
         />
       )}
 
-      {/* Toolbar row — toggle buttons above InputBar, right-aligned.
-          The Algo button is wrapped in `relative` so the popover can anchor to it. */}
-      <div className={`flex items-center justify-end px-4 py-1 gap-1 transition-all ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
+      {/* Toolbar row — Context meter + Algo + Debug toggle buttons */}
+      <div className={`flex items-center px-4 py-1 gap-1 transition-all ${sidebarOpen ? SIDEBAR_MARGIN : ""} ${drawerOpen ? DRAWER_MARGIN : ""}`}>
+        <ContextMeter tokens={ctxTokens} />
+        <div className="ml-auto flex items-center gap-1">
         <div className="relative">
-          {/* ISC popover — floats above this button, right-aligned */}
-          {iscVisible && (
-            <div className="absolute bottom-full right-0 mb-1 z-50 w-80 bg-surface-1 border border-border rounded-lg shadow-xl overflow-hidden">
-              <ISCPanel criteria={claude.algoCriteria} />
-              {claude.algoCriteria.length === 0 && (
-                <div className="px-3 py-4 text-center text-text-tertiary text-xs">No criteria yet</div>
-              )}
-            </div>
-          )}
-          <button
-            onClick={() => setIscVisible((v) => !v)}
-            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors ${
-              iscVisible ? "text-text-primary" : "text-text-tertiary hover:text-text-interactive"
-            }`}
-            title="Toggle ISC panel"
-          >
-            <span className="text-sm">🎯</span>
-            <span>ISC</span>
-            {claude.algoCriteria.length > 0 && (
-              <span className={`text-[10px] px-1 rounded-full min-w-[16px] text-center ${
-                claude.algoCriteria.filter((c) => c.status === "completed").length === claude.algoCriteria.length
-                  ? "bg-green-700 text-green-200"
-                  : "bg-surface-2 text-text-secondary"
-              }`}>
-                {claude.algoCriteria.filter((c) => c.status === "completed").length}/{claude.algoCriteria.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div className="relative">
-          {/* Algorithm popover — floats above this button, right-aligned */}
           {algoVisible && (
             <div className="absolute bottom-full right-0 mb-1 z-50">
               <AlgorithmTracker
@@ -223,11 +265,14 @@ function App() {
             </button>
           );
         })()}
+        </div>
       </div>
 
       <InputBar
         skills={skills}
         isStreaming={claude.isStreaming}
+        escapeArmed={escapeArmed}
+        questionActive={!!(activeQuestion && !activeQuestion.answered)}
         sidebarOpen={sidebarOpen}
         drawerOpen={drawerOpen}
         onSend={claude.sendMessage}
@@ -240,7 +285,6 @@ function App() {
         onRemoveQueued={promptQ.remove}
       />
 
-      {/* Debug console at bottom — in-flow, pushes everything up when open */}
       <DebugConsole
         logs={claude.debugLogs}
         visible={claude.debugVisible}
@@ -253,7 +297,15 @@ function App() {
       {/* True overlays */}
       <SkillPalette skills={skills} isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} onSelect={(s) => insertSkillCommand(s.name)} />
       <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <AgentDrawer agents={claude.agents} isOpen={drawerOpen} onToggle={() => setDrawerOpen((o) => !o)} />
+      <AgentDrawer
+        agents={claude.agents}
+        criteria={claude.algoCriteria}
+        isOpen={drawerOpen}
+        onToggle={() => setDrawerOpen((o) => !o)}
+        activeTab={drawerTab}
+        onTabChange={setDrawerTab}
+        onClearISC={claude.resetISC}
+      />
     </div>
   );
 }

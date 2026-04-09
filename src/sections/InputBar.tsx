@@ -8,6 +8,8 @@ import type { Skill } from "../types";
 interface InputBarProps {
   skills: Skill[];
   isStreaming: boolean;
+  escapeArmed: boolean;
+  questionActive: boolean;
   sidebarOpen: boolean;
   drawerOpen: boolean;
   onSend: (text: string) => void;
@@ -24,6 +26,8 @@ interface InputBarProps {
 export function InputBar({
   skills,
   isStreaming,
+  escapeArmed,
+  questionActive,
   sidebarOpen,
   drawerOpen,
   onSend,
@@ -48,6 +52,11 @@ export function InputBar({
   useEffect(() => {
     setSlashIndex(0);
   }, [slashQuery]);
+
+  // Restore focus to input when question is dismissed
+  useEffect(() => {
+    if (!questionActive) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [questionActive]);
 
   const insertSkillCommand = useCallback(
     (skillName: string) => {
@@ -133,46 +142,56 @@ export function InputBar({
         </div>
       )}
 
-      <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-2xl px-4 py-3">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Message Claudio… (/ for skills)"
-          rows={1}
-          className="flex-1 bg-transparent text-text-primary text-sm resize-none outline-none placeholder-text-secondary leading-normal"
-          style={{ maxHeight: "120px" }}
-        />
-        {isStreaming ? (
-          <div className="flex items-center gap-1 shrink-0">
-            {input.trim() && (
+      {escapeArmed && (
+        <div className="flex items-center justify-center mb-1.5">
+          <span className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-1 animate-pulse">
+            Press Esc again to stop
+          </span>
+        </div>
+      )}
+
+      {!questionActive && (
+        <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-2xl px-4 py-3">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Message Claudio… (/ for skills)"
+            rows={1}
+            className="flex-1 bg-transparent text-text-primary text-sm resize-none outline-none placeholder-text-secondary leading-normal"
+            style={{ maxHeight: "120px" }}
+          />
+          {isStreaming ? (
+            <div className="flex items-center gap-1 shrink-0">
+              {input.trim() && (
+                <button
+                  onClick={() => { onEnqueue(input.trim()); onInputChange(""); if (inputRef.current) inputRef.current.style.height = "auto"; }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 border border-border text-text-secondary hover:text-blue-400 hover:border-blue-400 transition-colors"
+                  title="Queue prompt"
+                >
+                  <IconSend className="w-4 h-4" />
+                </button>
+              )}
               <button
-                onClick={() => { onEnqueue(input.trim()); onInputChange(""); if (inputRef.current) inputRef.current.style.height = "auto"; }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 border border-border text-text-secondary hover:text-blue-400 hover:border-blue-400 transition-colors"
-                title="Queue prompt"
+                onClick={onStop}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
+                title="Stop (Esc)"
               >
-                <IconSend className="w-4 h-4" />
+                <IconStop className="w-4 h-4" />
               </button>
-            )}
+            </div>
+          ) : (
             <button
-              onClick={onStop}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
-              title="Stop (Esc)"
+              onClick={() => { onSend(input); onInputChange(""); }}
+              disabled={!input.trim()}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-30 hover:bg-blue-500 transition-colors shrink-0"
             >
-              <IconStop className="w-4 h-4" />
+              <IconSend className="w-4 h-4" />
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => { onSend(input); onInputChange(""); }}
-            disabled={!input.trim()}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-30 hover:bg-blue-500 transition-colors shrink-0"
-          >
-            <IconSend className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
