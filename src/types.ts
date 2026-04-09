@@ -89,6 +89,17 @@ export interface ISCriterion {
   domain?: string;
 }
 
+// ─── User Question Types ────────────────────────────────────
+
+export interface UserQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  allowFreeText: boolean;
+  answered: boolean;
+  selectedOption?: string;
+}
+
 // ─── Debug Types ─────────────────────────────────────────────
 
 export interface LogEntry {
@@ -238,4 +249,6 @@ export interface StreamEventCallbacks {
   onISCCriteria?: (criteria: ISCriterion[]) => void;
   /** Called when an Agent/Task tool_use is detected — tracks agent lifecycle */
   onAgentUpdate?: (event: AgentEvent) => void;
+  /** Called when AskUserQuestion tool_use is detected — surfaces interactive prompts */
+  onUserQuestion?: (question: UserQuestion) => void;
 }

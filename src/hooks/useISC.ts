@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AlgorithmPhase, ISCriterion } from "../types";
 
-const ISC_PREFIX = "claudio-isc-";
+// ISC criteria are project-level goals that persist across all chat sessions.
+const GLOBAL_ISC_KEY = "claudio-isc-v1";
 
-function loadISC(sessionId: string): ISCriterion[] {
+function loadISC(): ISCriterion[] {
   try {
-    const stored = localStorage.getItem(ISC_PREFIX + sessionId);
+    const stored = localStorage.getItem(GLOBAL_ISC_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch { return []; }
 }
 
-function saveISC(sessionId: string, criteria: ISCriterion[]) {
-  localStorage.setItem(ISC_PREFIX + sessionId, JSON.stringify(criteria));
+function saveISC(criteria: ISCriterion[]) {
+  localStorage.setItem(GLOBAL_ISC_KEY, JSON.stringify(criteria));
 }
 
 /** Single merge function for all ISC update paths */
@@ -28,29 +29,19 @@ export function mergeISC(prev: ISCriterion[], incoming: ISCriterion[], statusOnl
   return merged;
 }
 
-export function useISC(activeSessionId: string | null) {
+export function useISC(_activeSessionId: string | null) {
   const [algoPhases, setAlgoPhases] = useState<AlgorithmPhase[]>([]);
-  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>(() =>
-    activeSessionId ? loadISC(activeSessionId) : []
-  );
-  // Tracks when criteria were just loaded from storage so the save effect doesn't
-  // immediately write the PREVIOUS session's criteria to the NEW session's key.
-  const criteriaJustLoadedRef = useRef(false);
+  const [algoCriteria, setAlgoCriteria] = useState<ISCriterion[]>(() => loadISC());
+  const initialLoadRef = useRef(true);
 
-  // Load persisted criteria when session changes
+  // Persist criteria globally whenever they change — skip the very first render
   useEffect(() => {
-    criteriaJustLoadedRef.current = true;
-    setAlgoCriteria(activeSessionId ? loadISC(activeSessionId) : []);
-  }, [activeSessionId]);
-
-  // Persist criteria whenever they change — skip once after each session load
-  useEffect(() => {
-    if (criteriaJustLoadedRef.current) {
-      criteriaJustLoadedRef.current = false;
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
       return;
     }
-    if (activeSessionId) saveISC(activeSessionId, algoCriteria);
-  }, [activeSessionId, algoCriteria]);
+    saveISC(algoCriteria);
+  }, [algoCriteria]);
 
   /** Merge incoming criteria (full replace per criterion) */
   const updateCriteria = useCallback((incoming: ISCriterion[]) => {
@@ -62,9 +53,19 @@ export function useISC(activeSessionId: string | null) {
     setAlgoCriteria((prev) => mergeISC(prev, incoming, true));
   }, []);
 
+  /** Add criteria that don't already exist — never overwrites existing entries */
+  const addNewCriteria = useCallback((incoming: ISCriterion[]) => {
+    setAlgoCriteria((prev) => {
+      const existingIds = new Set(prev.map((c) => c.id));
+      const novel = incoming.filter((c) => !existingIds.has(c.id));
+      return novel.length > 0 ? [...prev, ...novel] : prev;
+    });
+  }, []);
+
   const resetISC = useCallback(() => {
     setAlgoPhases([]);
     setAlgoCriteria([]);
+    localStorage.removeItem(GLOBAL_ISC_KEY);
   }, []);
 
   return {
@@ -73,6 +74,7 @@ export function useISC(activeSessionId: string | null) {
     algoCriteria,
     updateCriteria,
     updateCriteriaStatus,
+    addNewCriteria,
     resetISC,
   };
 }
