@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
 import type {
-  Message, StreamStep, ClaudeModel, StreamEvent, StreamEventCallbacks, ToolCall,
+  Message, StreamStep, ClaudeModel, StreamEvent, StreamEventCallbacks, ToolCall, UserQuestion,
 } from "../types";
 import { parseAlgorithmState } from "../components/AlgorithmTracker";
 import type { Session } from "./useSessions";
@@ -87,10 +87,11 @@ export function useClaude({
 }: UseClaudeOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
+  const [pendingQuestion, setPendingQuestion] = useState<UserQuestion | null>(null);
   const childRef = useRef<SpawnedChild | null>(null);
 
   const { debugLogs, debugVisible, setDebugVisible, addLog, clearLogs } = useDebugLog();
-  const { algoPhases, setAlgoPhases, algoCriteria, updateCriteria, updateCriteriaStatus, resetISC } = useISC(activeSessionId);
+  const { algoPhases, setAlgoPhases, algoCriteria, updateCriteria, updateCriteriaStatus, addNewCriteria, resetISC } = useISC(activeSessionId);
   const { agents, handleAgentEvent, resetAgents } = useAgentTracker();
 
   const stopStreaming = useCallback(async () => {
@@ -130,7 +131,8 @@ export function useClaude({
       updateMessages(sessionId!, latestMessages);
       const algoState = parseAlgorithmState(content);
       if (algoState.phases.some((p) => p.status !== "pending")) setAlgoPhases(algoState.phases);
-      if (algoState.criteria.length > 0) updateCriteriaStatus(algoState.criteria);
+      // Only add new text-detected criteria — never overwrite statuses set by tool calls
+      if (algoState.criteria.length > 0) addNewCriteria(algoState.criteria);
     });
 
     const streamCallbacks: StreamEventCallbacks = {
@@ -150,6 +152,7 @@ export function useClaude({
       startTime: now,
       onISCCriteria: updateCriteria,
       onAgentUpdate: handleAgentEvent,
+      onUserQuestion: (q) => setPendingQuestion(q),
     };
 
     try {
@@ -241,9 +244,16 @@ export function useClaude({
     }
   }, [isStreaming, activeSessionId, activeSession, sessions, createSession, updateMessages, setClaudeSessionId, model, addLog, setAlgoPhases, updateCriteria, updateCriteriaStatus, handleAgentEvent, setDebugVisible, createCommand]);
 
+  const answerQuestion = useCallback((answer: string) => {
+    if (pendingQuestion) {
+      setPendingQuestion({ ...pendingQuestion, answered: true, selectedOption: answer });
+    }
+  }, [pendingQuestion]);
+
   return {
-    isStreaming, sendMessage, stopStreaming, resetForNewChat,
+    isStreaming, sendMessage, stopStreaming, resetForNewChat, resetISC,
     agents, algoPhases, algoCriteria, toolCalls,
+    pendingQuestion, answerQuestion,
     debugLogs, debugVisible, setDebugVisible, addLog, clearLogs,
   };
 }

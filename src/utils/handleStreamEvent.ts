@@ -157,6 +157,23 @@ function handleToolUseBlock(
     cb.onAgentUpdate({ kind: "spawn", agent });
   }
 
+  if (block.name === "AskUserQuestion" && cb.onUserQuestion) {
+    const question = getString(input, "question") || getString(input, "text") || "Choose an option:";
+    // Options may come as an array or as a formatted string
+    const rawOptions = input.options;
+    const options: string[] = Array.isArray(rawOptions)
+      ? rawOptions.map((o: unknown) => typeof o === "string" ? o : String(o))
+      : [];
+    cb.addLog("info", "app", `[Question] ${question} (${options.length} options)`);
+    cb.onUserQuestion({
+      id: block.id ?? crypto.randomUUID(),
+      question,
+      options,
+      allowFreeText: true,
+      answered: false,
+    });
+  }
+
   if (block.name === "TaskUpdate" && cb.onISCCriteria) {
     const criterion = parseISCFromContent(getString(input, "content"), getString(input, "status"));
     if (criterion) {
