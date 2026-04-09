@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudio - ISC Sidebar Options</title>
+<style>
+  :root {
+    --base: #0a0a14;
+    --surface-1: #0e0e1a;
+    --surface-2: #12121e;
+    --surface-3: #16162a;
+    --surface-hover: #1a1a2e;
+    --border: #1e1e3a;
+    --border-hover: #2a2a4a;
+    --text-primary: #e2e8f0;
+    --text-secondary: #475569;
+    --text-tertiary: #334155;
+    --text-interactive: #94a3b8;
+    --blue-400: #60a5fa;
+    --blue-500: #3b82f6;
+    --purple-400: #a78bfa;
+    --purple-500: #8b5cf6;
+    --green-400: #4ade80;
+    --green-500: #22c55e;
+    --red-400: #f87171;
+    --amber-400: #fbbf24;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    background: #000;
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  /* ===== Selector bar ===== */
+  .selector {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10, 10, 20, 0.95); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; flex-wrap: wrap;
+  }
+  .selector h1 { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-right: 8px; white-space: nowrap; }
+  .selector button {
+    padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--text-secondary);
+    font-size: 12px; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .selector button:hover { border-color: var(--purple-500); color: var(--text-primary); }
+  .selector button.active {
+    background: var(--purple-500); border-color: var(--purple-400);
+    color: white; font-weight: 600;
+  }
+
+  /* ===== Shared frame ===== */
+  .mockup { display: none; margin-top: 56px; height: calc(100vh - 56px); background: var(--base); position: relative; overflow: hidden; }
+  .mockup.visible { display: flex; }
+
+  /* Chat area */
+  .chat-area {
+    flex: 1; padding: 24px 20px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .chat-inner { max-width: 640px; margin: 0 auto; width: 100%; }
+
+  /* Message stubs */
+  .msg-stub {
+    display: flex; gap: 10px; padding: 6px 0;
+  }
+  .msg-avatar {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .msg-avatar.user { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: white; }
+  .msg-avatar.asst { background: linear-gradient(135deg, #6d28d9, #8b5cf6); color: white; }
+  .msg-body { font-size: 13px; line-height: 1.6; color: var(--text-interactive); }
+  .msg-name { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+  .msg-name.user { color: var(--blue-400); }
+  .msg-name.asst { color: var(--purple-400); }
+
+  /* ===== Sidebar (right) ===== */
+  .sidebar {
+    width: 340px; border-left: 1px solid var(--border);
+    background: var(--surface-1); display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-header h2 {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar-content { flex: 1; overflow-y: auto; }
+  .sidebar-section { border-bottom: 1px solid var(--border); }
+  .sidebar-section-header {
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .sidebar-section-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sidebar-section-count {
+    font-size: 10px; color: var(--text-tertiary);
+    background: var(--surface-2); padding: 1px 6px; border-radius: 4px;
+  }
+
+  /* ISC icons — SVG-based, theme-consistent */
+  .isc-icon {
+    width: 14px; height: 14px; display: inline-flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+  }
+
+  /* ===== ISC Criterion row ===== */
+  .criterion {
+    display: flex; align-items: flex-start; gap: 8px; padding: 6px 16px;
+  }
+  .criterion-check {
+    width: 14px; height: 14px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px; transition: all 0.2s;
+  }
+  .criterion-check.pending { border: 1.5px solid var(--border-hover); }
+  .criterion-check.progress { border: 1.5px solid var(--blue-500); background: rgba(59, 130, 246, 0.15); }
+  .criterion-check.progress::after {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--blue-400); animation: pulse 1.5s ease-in-out infinite;
+  }
+  .criterion-check.done { background: var(--green-500); border: none; }
+  .criterion-check.done::after {
+    content: '✓'; font-size: 9px; color: white; font-weight: 700;
+  }
+  .criterion-check.failed { background: var(--red-400); border: none; }
+  .criterion-check.failed::after {
+    content: '✕'; font-size: 9px; color: white; font-weight: 700;
+  }
+  .criterion-text { font-size: 11px; line-height: 1.5; color: var(--text-interactive); }
+  .criterion-text.done-text { color: var(--text-secondary); text-decoration: line-through; }
+  .criterion-id { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 3px; background: var(--border); border-radius: 2px; overflow: hidden;
+    margin: 0 16px 12px;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 2px; transition: width 0.5s ease;
+    background: linear-gradient(90deg, var(--blue-500), var(--green-500));
+  }
+
+  /* Agent card (mini) */
+  .agent-mini {
+    margin: 6px 12px; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface-2);
+  }
+  .agent-mini-header {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .agent-mini-icon {
+    width: 20px; height: 20px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+  .agent-mini-name { font-size: 11px; font-weight: 600; color: var(--text-primary); flex: 1; }
+  .agent-mini-status { font-size: 9px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+  .agent-mini-bar {
+    height: 2px; border-radius: 1px; margin-top: 8px; overflow: hidden;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex; border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1; padding: 10px 0; text-align: center;
+    font-size: 11px; font-weight: 600; color: var(--text-secondary);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.2s; display: flex; align-items: center;
+    justify-content: center; gap: 6px;
+  }
+  .tab:hover { color: var(--text-interactive); }
+  .tab.active { color: var(--text-primary); border-bottom-color: var(--purple-500); }
+  .tab-badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 4px;
+    background: var(--surface-2);
+  }
+  .tab.active .tab-badge { background: var(--purple-500); color: white; }
+
+  /* Option description */
+  .opt-desc {
+    padding: 16px; margin: 12px 16px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  .opt-desc h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .opt-desc p { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .opt-tag {
+    font-size: 9px; padding: 2px 8px; border-radius: 4px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  /* ===== Keyframes ===== */
+  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Selector -->
+<div class="selector">
+  <h1>ISC Sidebar Options</h1>
+  <button class="active" onclick="show('a')">A: Tabbed Sidebar</button>
+  <button onclick="show('b')">B: Unified Timeline</button>
+  <button onclick="show('c')">C: Collapsible Sections</button>
+  <button onclick="show('d')">D: Split Pane</button>
+  <button onclick="show('e')">E: ISC Overlay</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- Reusable chat content (cloned into each mockup) -->
+<!-- ============================================================ -->
+
+<!-- OPTION A: Tabbed Sidebar — Agents & ISC as tabs in one sidebar -->
+<div id="mockup-a" class="mockup visible">
+  <div class="chat-area">
+    <div class="chat-inner">
+      <div class="opt-desc">
+        <h3><span class="opt-tag" style="background: rgba(139,92,246,0.15); color: var(--purple-400);">Tabs</span> Option A: Tabbed Sidebar</h3>
+        <p>Agents and ISC share <strong>one sidebar with tabs</strong>. ISC tab shows the checklist with progress. The icon is an SVG crosshair/scope — geometric, fits the dark theme. Badge on each tab shows counts.</p>
+      </div>
+      <div class="msg-stub"><div class="msg-avatar user">F</div><div><div class="msg-name user">Fred</div><div class="msg-body">Redesign the token rotation strategy and implement it with concurrent session handling.</div></div></div>
+      <div class="msg-stub"><div class="msg-avatar asst">G</div><div><div class="msg-name asst">Greg</div><div class="msg-body">I'll build a dual-token architecture with sliding window refresh and per-device token families. Let me map the existing auth middleware first...</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="tab-bar">
+      <div class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+        <!-- Sparkle SVG icon -->
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684Z"/></svg>
+        Agents <span class="tab-badge">3</span>
+      </div>
+      <div class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+        <!-- Crosshair/scope icon -->
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/><line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/><line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
+        </svg>
+        ISC <span class="tab-badge">4/7</span>
+      </div>
+    </div>
+    <div class="sidebar-content" style="padding-top: 8px;">
+      <!-- Progress bar -->
+      <div style="padding: 8px 16px 4px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span style="font-size: 10px; color: var(--text-secondary);">Progress</span>
+          <span style="font-size: 10px; color: var(--green-400); font-weight: 600;">4 / 7</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 57%;"></div></div>
+      </div>
+
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C1:</span> Token pair architecture defined</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C2:</span> Refresh rotation with sliding window</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C3:</span> Per-device token families</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C4:</span> Password change triggers revocation</div></div>
+      <div class="criterion"><div class="criterion-check progress"></div><div class="criterion-text"><span class="criterion-id">ISC-C5:</span> Redis TTL for sub-ms revocation checks</div></div>
+      <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">ISC-C6:</span> Unit tests for concurrent refresh scenarios</div></div>
+      <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">ISC-C7:</span> Migration backwards-compatible with existing tokens</div></div>
+
+      <!-- Anti-criteria -->
+      <div style="padding: 12px 16px 4px;">
+        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red-400); opacity: 0.7;">Anti-criteria</div>
+      </div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id" style="color: var(--red-400);">ISC-A1:</span> Must not invalidate active sessions on rotation</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION B: Unified Timeline — ISC & agents interleaved chronologically -->
+<div id="mockup-b" class="mockup">
+  <div class="chat-area">
+    <div class="chat-inner">
+      <div class="opt-desc">
+        <h3><span class="opt-tag" style="background: rgba(96,165,250,0.15); color: var(--blue-400);">Timeline</span> Option B: Unified Timeline</h3>
+        <p>Agents and ISC criteria appear in <strong>one chronological feed</strong>. As agents complete work, the ISC criteria they satisfy appear inline. Gives a narrative feel — you see the story of the work unfolding.</p>
+      </div>
+      <div class="msg-stub"><div class="msg-avatar user">F</div><div><div class="msg-name user">Fred</div><div class="msg-body">Redesign the token rotation strategy and implement it.</div></div></div>
+      <div class="msg-stub"><div class="msg-avatar asst">G</div><div><div class="msg-name asst">Greg</div><div class="msg-body">Building dual-token architecture now...</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14" stroke-linecap="round"/><circle cx="8" cy="4" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+        Activity
+      </h2>
+      <span style="font-size: 10px; color: var(--green-400);">4/7 ISC</span>
+    </div>
+    <div class="sidebar-content" style="padding: 8px 0;">
+      <!-- Progress bar at top -->
+      <div class="progress-bar" style="margin: 4px 16px 12px;"><div class="progress-fill" style="width: 57%;"></div></div>
+
+      <!-- Timeline items -->
+      <div style="padding: 0 12px;">
+        <!-- Agent completed -->
+        <div style="display: flex; gap: 10px; padding: 8px 0; border-left: 2px solid var(--green-500); margin-left: 8px; padding-left: 12px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="var(--green-400)"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">Auth middleware scan</span>
+              <span style="font-size: 9px; color: var(--text-tertiary);">12s</span>
+            </div>
+            <div style="margin-top: 4px;">
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green-400); padding: 2px 0;">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--green-400)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/></svg>
+                ISC-C1 &#10003;
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green-400); padding: 2px 0;">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--green-400)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/></svg>
+                ISC-C2 &#10003;
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; padding: 8px 0; border-left: 2px solid var(--green-500); margin-left: 8px; padding-left: 12px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="var(--green-400)"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">Session handler refactor</span>
+              <span style="font-size: 9px; color: var(--text-tertiary);">28s</span>
+            </div>
+            <div style="margin-top: 4px;">
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green-400); padding: 2px 0;">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--green-400)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/></svg>
+                ISC-C3 &#10003;
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green-400); padding: 2px 0;">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--green-400)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/></svg>
+                ISC-C4 &#10003;
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active agent -->
+        <div style="display: flex; gap: 10px; padding: 8px 0; border-left: 2px solid var(--blue-500); margin-left: 8px; padding-left: 12px;">
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="var(--blue-400)"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">Redis integration</span>
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--blue-400); animation: pulse 1.5s ease infinite;"></span>
+              <span style="font-size: 9px; color: var(--blue-400);">34s</span>
+            </div>
+            <div style="margin-top: 4px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--blue-400); padding: 2px 0;">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--blue-400)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/></svg>
+              ISC-C5 ...
+            </div>
+            <div style="height: 2px; border-radius: 1px; margin-top: 6px; background: rgba(59,130,246,0.2); overflow: hidden;">
+              <div style="width: 40%; height: 100%; border-radius: 1px; background: linear-gradient(90deg, transparent, var(--blue-400), transparent); animation: indeterminate 1.5s ease infinite;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending criteria -->
+        <div style="padding: 8px 0 4px 22px; border-left: 2px solid var(--border); margin-left: 8px;">
+          <div style="font-size: 10px; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Remaining</div>
+          <div style="font-size: 10px; color: var(--text-secondary); padding: 2px 0;">ISC-C6: Unit tests for concurrent refresh</div>
+          <div style="font-size: 10px; color: var(--text-secondary); padding: 2px 0;">ISC-C7: Migration backwards-compatible</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION C: Collapsible Sections — Agents on top, ISC below, both in sidebar -->
+<div id="mockup-c" class="mockup">
+  <div class="chat-area">
+    <div class="chat-inner">
+      <div class="opt-desc">
+        <h3><span class="opt-tag" style="background: rgba(74,222,128,0.15); color: var(--green-400);">Sections</span> Option C: Collapsible Sections</h3>
+        <p>Agents and ISC live in the <strong>same sidebar as collapsible sections</strong>. Each can be expanded/collapsed independently. ISC section has its own progress bar. Most straightforward layout — just extends the agent drawer.</p>
+      </div>
+      <div class="msg-stub"><div class="msg-avatar user">F</div><div><div class="msg-name user">Fred</div><div class="msg-body">Redesign the token rotation strategy and implement it.</div></div></div>
+      <div class="msg-stub"><div class="msg-avatar asst">G</div><div><div class="msg-name asst">Greg</div><div class="msg-body">Building dual-token architecture now...</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="color: var(--text-secondary);"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+        Workspace
+      </h2>
+    </div>
+    <div class="sidebar-content">
+      <!-- Agents section -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <div class="sidebar-section-title">
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+            Agents
+          </div>
+          <span class="sidebar-section-count">1 running</span>
+        </div>
+        <div style="padding: 0 8px 8px;">
+          <div class="agent-mini">
+            <div class="agent-mini-header">
+              <div class="agent-mini-icon" style="background: rgba(59,130,246,0.15); color: var(--blue-400);"><svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg></div>
+              <span class="agent-mini-name">Redis integration</span>
+              <span class="agent-mini-status" style="background: rgba(59,130,246,0.15); color: var(--blue-400);">34s</span>
+            </div>
+            <div class="agent-mini-bar" style="background: rgba(59,130,246,0.15);">
+              <div style="width: 40%; height: 100%; border-radius: 1px; background: linear-gradient(90deg, transparent, var(--blue-400), transparent); animation: indeterminate 1.5s ease infinite;"></div>
+            </div>
+          </div>
+          <div class="agent-mini" style="border-color: rgba(34,197,94,0.2); opacity: 0.6;">
+            <div class="agent-mini-header">
+              <div class="agent-mini-icon" style="background: rgba(34,197,94,0.15); color: var(--green-400);">&#10003;</div>
+              <span class="agent-mini-name" style="color: var(--text-secondary);">Auth middleware scan</span>
+              <span class="agent-mini-status" style="background: rgba(34,197,94,0.15); color: var(--green-400);">done</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ISC section -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <div class="sidebar-section-title">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/><line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/><line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/></svg>
+            Ideal State Criteria
+          </div>
+          <span class="sidebar-section-count">4 / 7</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 57%;"></div></div>
+        <div style="padding-bottom: 8px;">
+          <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C1:</span> Token pair architecture</div></div>
+          <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C2:</span> Refresh rotation</div></div>
+          <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C3:</span> Per-device token families</div></div>
+          <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">ISC-C4:</span> Password change revocation</div></div>
+          <div class="criterion"><div class="criterion-check progress"></div><div class="criterion-text"><span class="criterion-id">ISC-C5:</span> Redis TTL revocation checks</div></div>
+          <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">ISC-C6:</span> Unit tests for concurrent refresh</div></div>
+          <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">ISC-C7:</span> Migration backwards-compatible</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION D: Split Pane — Agents top half, ISC bottom half, resizable -->
+<div id="mockup-d" class="mockup">
+  <div class="chat-area">
+    <div class="chat-inner">
+      <div class="opt-desc">
+        <h3><span class="opt-tag" style="background: rgba(251,191,36,0.15); color: var(--amber-400);">Split</span> Option D: Split Pane</h3>
+        <p>Sidebar is <strong>split vertically</strong> — agents on top, ISC on bottom. Both always visible, no tabs or collapsing needed. A thin drag handle between them lets you resize. ISC stays anchored at bottom so you always see progress.</p>
+      </div>
+      <div class="msg-stub"><div class="msg-avatar user">F</div><div><div class="msg-name user">Fred</div><div class="msg-body">Redesign the token rotation strategy.</div></div></div>
+      <div class="msg-stub"><div class="msg-avatar asst">G</div><div><div class="msg-name asst">Greg</div><div class="msg-body">On it. Building dual-token architecture...</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar" style="display: flex; flex-direction: column;">
+    <!-- Top: Agents -->
+    <div style="flex: 1; overflow-y: auto; border-bottom: none;">
+      <div class="sidebar-section-header">
+        <div class="sidebar-section-title">
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+          Agents
+        </div>
+        <span class="sidebar-section-count">1 running</span>
+      </div>
+      <div style="padding: 0 8px 8px;">
+        <div class="agent-mini">
+          <div class="agent-mini-header">
+            <div class="agent-mini-icon" style="background: rgba(59,130,246,0.15); color: var(--blue-400);">&#9889;</div>
+            <span class="agent-mini-name">Redis integration</span>
+            <span class="agent-mini-status" style="background: rgba(59,130,246,0.15); color: var(--blue-400);">34s</span>
+          </div>
+          <div class="agent-mini-bar" style="background: rgba(59,130,246,0.15);"><div style="width: 40%; height: 100%; border-radius: 1px; background: linear-gradient(90deg, transparent, var(--blue-400), transparent); animation: indeterminate 1.5s ease infinite;"></div></div>
+        </div>
+        <div class="agent-mini" style="border-color: rgba(34,197,94,0.2); opacity: 0.6;">
+          <div class="agent-mini-header">
+            <div class="agent-mini-icon" style="background: rgba(34,197,94,0.15); color: var(--green-400);">&#10003;</div>
+            <span class="agent-mini-name" style="color: var(--text-secondary);">Auth scan</span>
+            <span class="agent-mini-status" style="background: rgba(34,197,94,0.15); color: var(--green-400);">12s</span>
+          </div>
+        </div>
+        <div class="agent-mini" style="border-color: rgba(34,197,94,0.2); opacity: 0.6;">
+          <div class="agent-mini-header">
+            <div class="agent-mini-icon" style="background: rgba(34,197,94,0.15); color: var(--green-400);">&#10003;</div>
+            <span class="agent-mini-name" style="color: var(--text-secondary);">Session refactor</span>
+            <span class="agent-mini-status" style="background: rgba(34,197,94,0.15); color: var(--green-400);">28s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resize handle -->
+    <div style="height: 3px; background: var(--border); cursor: ns-resize; position: relative;">
+      <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 3px; border-radius: 2px; background: var(--text-tertiary);"></div>
+    </div>
+
+    <!-- Bottom: ISC -->
+    <div style="flex: 1; overflow-y: auto;">
+      <div class="sidebar-section-header">
+        <div class="sidebar-section-title">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/><line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/><line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/></svg>
+          ISC
+        </div>
+        <span style="font-size: 10px; color: var(--green-400); font-weight: 600;">4/7</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width: 57%;"></div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C1:</span> Token pair architecture</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C2:</span> Refresh rotation</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C3:</span> Per-device families</div></div>
+      <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C4:</span> Password revocation</div></div>
+      <div class="criterion"><div class="criterion-check progress"></div><div class="criterion-text"><span class="criterion-id">C5:</span> Redis TTL checks</div></div>
+      <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">C6:</span> Concurrent refresh tests</div></div>
+      <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">C7:</span> Migration compat</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION E: ISC Overlay — ISC floats as a persistent bottom strip in sidebar -->
+<div id="mockup-e" class="mockup">
+  <div class="chat-area">
+    <div class="chat-inner">
+      <div class="opt-desc">
+        <h3><span class="opt-tag" style="background: rgba(248,113,113,0.15); color: var(--red-400);">Overlay</span> Option E: ISC as Pinned Footer</h3>
+        <p>Agents own the sidebar scroll area. ISC is <strong>pinned to the bottom</strong> of the sidebar as a collapsible panel — always visible as a compact progress strip, expandable to see full criteria. You never lose sight of ISC even when scrolling agents.</p>
+      </div>
+      <div class="msg-stub"><div class="msg-avatar user">F</div><div><div class="msg-name user">Fred</div><div class="msg-body">Redesign the token rotation strategy.</div></div></div>
+      <div class="msg-stub"><div class="msg-avatar asst">G</div><div><div class="msg-name asst">Greg</div><div class="msg-body">On it...</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar" style="display: flex; flex-direction: column;">
+    <div class="sidebar-header">
+      <h2>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192Z"/></svg>
+        Agents
+      </h2>
+      <span style="font-size: 10px; color: var(--blue-400);">1 running</span>
+    </div>
+    <!-- Agents scroll area -->
+    <div style="flex: 1; overflow-y: auto; padding: 8px;">
+      <div class="agent-mini">
+        <div class="agent-mini-header">
+          <div class="agent-mini-icon" style="background: rgba(59,130,246,0.15); color: var(--blue-400);">&#9889;</div>
+          <span class="agent-mini-name">Redis integration</span>
+          <span class="agent-mini-status" style="background: rgba(59,130,246,0.15); color: var(--blue-400);">34s</span>
+        </div>
+        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px; padding-left: 28px;">Working on ISC-C5: Redis TTL checks</div>
+        <div class="agent-mini-bar" style="background: rgba(59,130,246,0.15);"><div style="width: 40%; height: 100%; border-radius: 1px; background: linear-gradient(90deg, transparent, var(--blue-400), transparent); animation: indeterminate 1.5s ease infinite;"></div></div>
+      </div>
+      <div class="agent-mini" style="border-color: rgba(34,197,94,0.2); opacity: 0.6;">
+        <div class="agent-mini-header">
+          <div class="agent-mini-icon" style="background: rgba(34,197,94,0.15); color: var(--green-400);">&#10003;</div>
+          <span class="agent-mini-name" style="color: var(--text-secondary);">Auth middleware scan</span>
+          <span class="agent-mini-status" style="background: rgba(34,197,94,0.15); color: var(--green-400);">12s</span>
+        </div>
+      </div>
+      <div class="agent-mini" style="border-color: rgba(34,197,94,0.2); opacity: 0.6;">
+        <div class="agent-mini-header">
+          <div class="agent-mini-icon" style="background: rgba(34,197,94,0.15); color: var(--green-400);">&#10003;</div>
+          <span class="agent-mini-name" style="color: var(--text-secondary);">Session handler refactor</span>
+          <span class="agent-mini-status" style="background: rgba(34,197,94,0.15); color: var(--green-400);">28s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ISC pinned footer -->
+    <div style="border-top: 1px solid var(--border); background: var(--surface-2);">
+      <!-- Compact header bar — always visible -->
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; cursor: pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none';">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/><line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/><line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/></svg>
+        <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">ISC</span>
+        <span style="font-size: 10px; color: var(--green-400); font-weight: 600;">4/7</span>
+
+        <!-- Mini inline progress -->
+        <div style="flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 0 4px;">
+          <div style="height: 100%; width: 57%; border-radius: 2px; background: linear-gradient(90deg, var(--blue-500), var(--green-500));"></div>
+        </div>
+
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-tertiary); transition: transform 0.2s;"><path fill-rule="evenodd" d="M4.22 9.78a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1-1.06 1.06L8 7.06 4.78 9.78a.75.75 0 0 1-1.06 0Z"/></svg>
+      </div>
+
+      <!-- Expandable criteria list -->
+      <div style="max-height: 220px; overflow-y: auto; padding-bottom: 8px;">
+        <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C1:</span> Token pair architecture</div></div>
+        <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C2:</span> Refresh rotation</div></div>
+        <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C3:</span> Per-device families</div></div>
+        <div class="criterion"><div class="criterion-check done"></div><div class="criterion-text done-text"><span class="criterion-id">C4:</span> Password revocation</div></div>
+        <div class="criterion"><div class="criterion-check progress"></div><div class="criterion-text"><span class="criterion-id">C5:</span> Redis TTL checks</div></div>
+        <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">C6:</span> Concurrent refresh tests</div></div>
+        <div class="criterion"><div class="criterion-check pending"></div><div class="criterion-text"><span class="criterion-id">C7:</span> Migration compat</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.mockup').forEach(m => m.classList.remove('visible'));
+  document.querySelectorAll('.selector button').forEach(b => b.classList.remove('active'));
+  document.getElementById('mockup-' + id).classList.add('visible');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

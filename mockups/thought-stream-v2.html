@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudio - Thought Stream (Final Design)</title>
+<style>
+  :root {
+    --base: #0d1117;
+    --surface-1: #161b22;
+    --surface-2: #21262d;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-tertiary: #484f58;
+    --blue-400: #58a6ff;
+    --blue-500: #388bfd;
+    --blue-600: #1f6feb;
+    --purple-400: #bc8cff;
+    --purple-500: #8b5cf6;
+    --green-400: #3fb950;
+    --amber-400: #d29922;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    background: var(--base);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  /* ===== App shell ===== */
+  .app {
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  .titlebar {
+    height: 44px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 10px;
+    background: var(--surface-1);
+    -webkit-app-region: drag;
+  }
+  .titlebar-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .titlebar-title {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin-left: 8px;
+  }
+  .titlebar-badge {
+    font-size: 10px; color: var(--text-tertiary);
+    background: var(--surface-2); padding: 2px 8px; border-radius: 4px;
+    margin-left: auto;
+  }
+
+  /* ===== Chat area ===== */
+  .chat {
+    flex: 1; overflow-y: auto;
+    padding: 24px 0;
+  }
+  .chat-inner {
+    max-width: 720px; margin: 0 auto;
+    padding: 0 20px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  /* ===== Messages — all left-aligned ===== */
+  .msg {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 8px 0;
+  }
+
+  .msg-avatar {
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg-user .msg-avatar {
+    background: linear-gradient(135deg, #1f6feb, #388bfd);
+    color: white;
+  }
+  .msg-assistant .msg-avatar {
+    background: linear-gradient(135deg, #6e40c9, #8b5cf6);
+    color: white;
+  }
+
+  .msg-content { flex: 1; min-width: 0; }
+
+  .msg-name {
+    font-size: 12px; font-weight: 600; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .msg-user .msg-name { color: var(--blue-400); }
+  .msg-assistant .msg-name { color: var(--purple-400); }
+  .msg-time {
+    font-size: 10px; color: var(--text-tertiary); font-weight: 400;
+  }
+
+  .msg-body {
+    font-size: 14px; line-height: 1.65; color: var(--text-primary);
+  }
+  .msg-body strong { font-weight: 600; }
+  .msg-body p { margin: 6px 0; }
+  .msg-body p:first-child { margin-top: 0; }
+  .msg-body code {
+    background: var(--surface-2); padding: 1px 6px; border-radius: 4px;
+    font-size: 12px; color: var(--blue-400);
+  }
+
+  /* Separator between user/assistant turns */
+  .turn-sep {
+    height: 1px; background: var(--border); margin: 8px 0 8px 44px;
+    opacity: 0.5;
+  }
+
+  /* ===== Thought cards (inline, under assistant avatar column) ===== */
+  .thought-card {
+    margin-left: 44px; /* avatar width + gap */
+    animation: thoughtSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    margin-bottom: 6px;
+  }
+
+  .thought-card-inner {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.06), rgba(88, 166, 255, 0.04));
+    border: 1px solid rgba(139, 92, 246, 0.12);
+    border-radius: 10px;
+    padding: 10px 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Active shimmer bar */
+  .thought-card-inner.active::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--purple-500), var(--blue-400), transparent);
+    background-size: 200% 100%;
+    animation: shimmerBar 2.5s ease-in-out infinite;
+  }
+
+  .thought-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+  }
+  .thought-phase-icon { font-size: 13px; line-height: 1; }
+  .thought-phase-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--purple-400);
+  }
+  .thought-phase-num {
+    font-size: 9px; color: var(--text-tertiary);
+    background: rgba(139, 92, 246, 0.1); padding: 1px 6px; border-radius: 4px;
+  }
+  .thought-elapsed {
+    font-size: 9px; color: var(--text-tertiary); margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .thought-text {
+    font-size: 12px; color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .thought-text.typing::after {
+    content: '';
+    display: inline-block; width: 5px; height: 13px;
+    background: var(--purple-400); margin-left: 2px;
+    vertical-align: text-bottom; border-radius: 1px;
+    animation: cursorBlink 1s step-end infinite;
+  }
+
+  /* Sub-thought (lighter, nested) */
+  .thought-sub {
+    margin-left: 44px;
+    margin-bottom: 6px;
+    animation: thoughtSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .thought-sub-inner {
+    background: rgba(139, 92, 246, 0.03);
+    border: 1px solid rgba(139, 92, 246, 0.08);
+    border-left: 2px solid rgba(139, 92, 246, 0.2);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 11px; color: var(--text-tertiary);
+    line-height: 1.5;
+  }
+
+  /* Collapsed thought (completed phase) */
+  .thought-collapsed {
+    margin-left: 44px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0;
+    animation: thoughtSlideIn 0.3s ease;
+  }
+  .thought-collapsed-icon {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: rgba(63, 185, 80, 0.1);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--green-400);
+  }
+  .thought-collapsed-phase {
+    font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  }
+  .thought-collapsed-summary {
+    font-size: 11px; color: var(--text-tertiary); opacity: 0.7;
+  }
+  .thought-collapsed-time {
+    font-size: 9px; color: var(--text-tertiary); opacity: 0.5;
+    margin-left: auto; font-variant-numeric: tabular-nums;
+  }
+
+  /* Active thinking dots */
+  .thinking-dots {
+    display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle;
+  }
+  .thinking-dots span {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--purple-400);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* ===== Streaming cursor on output ===== */
+  .streaming-cursor::after {
+    content: '';
+    display: inline-block; width: 7px; height: 16px;
+    background: var(--purple-400); margin-left: 2px;
+    vertical-align: text-bottom; border-radius: 1px;
+    animation: cursorBlink 1s step-end infinite;
+  }
+
+  /* ===== Input bar ===== */
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 12px 20px 20px;
+    background: var(--base);
+  }
+  .input-bar {
+    max-width: 720px; margin: 0 auto;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .input-bar-text {
+    flex: 1; font-size: 14px; color: var(--text-tertiary);
+  }
+  .input-bar-send {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-tertiary); display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  /* ===== Keyframes ===== */
+  @keyframes thoughtSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shimmerBar {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes cursorBlink {
+    50% { opacity: 0; }
+  }
+  @keyframes dotPulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="titlebar-dot" style="background: #ff5f57;"></div>
+    <div class="titlebar-dot" style="background: #febc2e;"></div>
+    <div class="titlebar-dot" style="background: #28c840;"></div>
+    <span class="titlebar-title">Claudio</span>
+    <span class="titlebar-badge">claude-opus-4-6</span>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat">
+    <div class="chat-inner">
+
+      <!-- === Earlier conversation turn (completed) === -->
+      <div class="msg msg-user">
+        <div class="msg-avatar">F</div>
+        <div class="msg-content">
+          <div class="msg-name">Fred <span class="msg-time">10:42 AM</span></div>
+          <div class="msg-body">Can you check the auth middleware and tell me what's going on with token refresh?</div>
+        </div>
+      </div>
+
+      <div class="turn-sep"></div>
+
+      <div class="msg msg-assistant">
+        <div class="msg-avatar">G</div>
+        <div class="msg-content">
+          <div class="msg-name">Greg <span class="msg-time">10:42 AM</span></div>
+          <div class="msg-body">
+            <p>Your auth middleware in <code>src/middleware/auth.ts</code> has a pretty standard JWT setup, but the token refresh has a gap. Here's what I found:</p>
+            <p>The access tokens have a 24-hour expiry with no sliding window, and there's no refresh token rotation happening at all. Once a token is issued, it lives until it expires -- even after password changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 20px;"></div>
+
+      <!-- === Current turn === -->
+      <div class="msg msg-user">
+        <div class="msg-avatar">F</div>
+        <div class="msg-content">
+          <div class="msg-name">Fred <span class="msg-time">10:44 AM</span></div>
+          <div class="msg-body">Right, that's not great. Can you redesign the whole token rotation strategy and implement it? Make sure it handles the edge cases around concurrent sessions.</div>
+        </div>
+      </div>
+
+      <div class="turn-sep"></div>
+
+      <!-- Collapsed completed phases -->
+      <div class="thought-collapsed">
+        <div class="thought-collapsed-icon">&#10003;</div>
+        <span class="thought-collapsed-phase">&#128065;&#65039; OBSERVE</span>
+        <span class="thought-collapsed-summary">-- Mapped token lifecycle across 4 files, found 3 middleware layers and Redis session store</span>
+        <span class="thought-collapsed-time">8s</span>
+      </div>
+
+      <div class="thought-collapsed">
+        <div class="thought-collapsed-icon">&#10003;</div>
+        <span class="thought-collapsed-phase">&#129504; THINK</span>
+        <span class="thought-collapsed-summary">-- Identified rotation gap, concurrent session risks, and OWASP compliance issues</span>
+        <span class="thought-collapsed-time">5s</span>
+      </div>
+
+      <!-- Active thinking card (PLAN phase) -->
+      <div class="thought-card">
+        <div class="thought-card-inner active">
+          <div class="thought-header">
+            <span class="thought-phase-icon">&#128203;</span>
+            <span class="thought-phase-label">PLAN</span>
+            <span class="thought-phase-num">3 / 7</span>
+            <div class="thinking-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <span class="thought-elapsed">0:04</span>
+          </div>
+          <div class="thought-text typing">Designing dual-token architecture: 15min access tokens paired with 7-day refresh tokens, using sliding window rotation to handle concurrent sessions without invalidating other devices</div>
+        </div>
+      </div>
+
+      <!-- Sub-thought -->
+      <div class="thought-sub">
+        <div class="thought-sub-inner">
+          Weighing tradeoffs: Redis TTL gives sub-ms revocation lookups but adds infra dependency... DB-backed revocation list is simpler but needs periodic cleanup job
+        </div>
+      </div>
+
+      <!-- Another sub-thought -->
+      <div class="thought-sub">
+        <div class="thought-sub-inner">
+          For concurrent sessions: each device gets its own refresh token family -- rotating one doesn't kill the others, but compromised tokens trigger family-wide revocation
+        </div>
+      </div>
+
+      <!-- Assistant message starting to stream output -->
+      <div class="msg msg-assistant" style="margin-top: 8px;">
+        <div class="msg-avatar">G</div>
+        <div class="msg-content">
+          <div class="msg-name">Greg <span class="msg-time">10:44 AM</span></div>
+          <div class="msg-body">
+            <p><strong>Token Rotation Redesign</strong></p>
+            <p>Here's the architecture I'm going with. Your current setup has three main problems: no refresh rotation, 24h access tokens (way too long), and tokens surviving password changes. The new design fixes all of these.</p>
+            <p><strong>Dual-token model:</strong></p>
+            <p>Short-lived access tokens (15 min) paired with longer refresh tokens (7 days). Each device/session gets its own "token family" so rotating one session doesn't log out your phone<span class="streaming-cursor"></span></p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-bar">
+      <span class="input-bar-text">Ask Greg anything...</span>
+      <div class="input-bar-send">&#8593;</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

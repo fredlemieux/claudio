@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claudio — Context Window Mockups</title>
+<style>
+  :root {
+    --base:        #0d1117;
+    --surface-1:   #161b27;
+    --surface-2:   #1c2333;
+    --surface-3:   #242d3e;
+    --border:      rgba(255,255,255,0.07);
+    --border-hover:rgba(255,255,255,0.14);
+    --text-primary:   #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-tertiary:  #64748b;
+    --text-interactive: #60a5fa;
+    --blue-400:  #60a5fa;
+    --blue-500:  #3b82f6;
+    --blue-600:  #2563eb;
+    --amber-400: #fbbf24;
+    --orange-400:#fb923c;
+    --red-400:   #f87171;
+    --red-500:   #ef4444;
+    --red-600:   #dc2626;
+    --green-400: #4ade80;
+    --purple-400:#c084fc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--base);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .subtitle { color: var(--text-secondary); font-size: 12px; margin-bottom: 28px; }
+
+  /* ── Global slider ─────────────────────────────────────── */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 36px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+  }
+  .slider-row label { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+  .slider-row input[type=range] {
+    flex: 1;
+    accent-color: var(--blue-400);
+    cursor: pointer;
+  }
+  #pct-display {
+    min-width: 42px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  #tok-display {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  /* ── Mockup card ───────────────────────────────────────── */
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .card-body { padding: 20px 18px; }
+  .card-desc {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 10px 18px 14px;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+
+  /* ── Claudio chrome elements ───────────────────────────── */
+  .titlebar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 14px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .titlebar .logo { color: var(--blue-400); font-weight: 700; font-size: 13px; }
+  .titlebar .ver  { color: var(--text-secondary); font-size: 11px; }
+  .badge {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+  .streaming-dot {
+    width: 6px; height: 6px;
+    background: var(--blue-400);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .streaming-label { color: var(--blue-400); font-size: 11px; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+  .spacer { flex: 1; }
+  .icon-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 4px 14px;
+    gap: 4px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 0 0 8px 8px;
+    border-top: none;
+  }
+  .toolbar-btn {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .inputbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  .inputbar textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+  .send-btn {
+    width: 30px; height: 30px;
+    background: var(--blue-600);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MOCKUP A — Hairline bar
+  ══════════════════════════════════════════════════════════ */
+  #bar-a {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--surface-2);
+  }
+  #bar-a-fill {
+    height: 100%;
+    transition: width 0.4s ease, background-color 0.4s ease;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MOCKUP B — Pill badge
+  ══════════════════════════════════════════════════════════ */
+  .ctx-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 2px 6px;
+    transition: color 0.4s, border-color 0.4s;
+  }
+  .pill-bar-track {
+    width: 32px; height: 4px;
+    background: var(--surface-1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .pill-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0.7;
+    transition: width 0.4s ease;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MOCKUP C — Input border glow
+  ══════════════════════════════════════════════════════════ */
+  #inputbar-c {
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MOCKUP D — Segmented meter
+  ══════════════════════════════════════════════════════════ */
+  .seg-meter {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: color 0.4s;
+    cursor: default;
+  }
+  .seg-track {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .seg {
+    width: 5px; height: 10px;
+    border-radius: 1px;
+    transition: background-color 0.3s;
+  }
+  .seg-pct {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.4s;
+  }
+
+  /* ── Divider labels ────────────────────────────────────── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+  }
+
+  /* comparison grid */
+  .compare-note {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 8px 0 0;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .compare-note span { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h1>Claudio — Context Window Indicator Mockups</h1>
+<p class="subtitle">Drag the slider to simulate context fill. All 4 designs update live.</p>
+
+<!-- ── Global slider ────────────────────────────────────── -->
+<div class="slider-row">
+  <label>Context fill</label>
+  <input type="range" id="ctx-slider" min="0" max="100" value="35" step="1" />
+  <span id="pct-display">35%</span>
+  <span id="tok-display">70K / 200K tokens</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MOCKUP A
+════════════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-label">Mockup A</div>
+      <div class="card-name">Hairline bar — TitleBar underline</div>
+    </div>
+    <div class="compare-note">
+      <span><span class="dot" style="background:var(--blue-400)"></span> ≤50%</span>
+      <span><span class="dot" style="background:var(--amber-400)"></span> 50–75%</span>
+      <span><span class="dot" style="background:var(--orange-400)"></span> 75–90%</span>
+      <span><span class="dot" style="background:var(--red-500)"></span> &gt;90%</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="titlebar">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:16px">☰</span>
+      </div>
+      <span class="logo">Claudio</span>
+      <span class="ver">v0.4</span>
+      <span class="badge">claude-opus-4-6</span>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:6px;">
+        <div class="streaming-dot"></div>
+        <span class="streaming-label">Streaming</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="icon-btn">⌘</span>
+      <span class="icon-btn">⚙</span>
+      <!-- The bar -->
+      <div id="bar-a">
+        <div id="bar-a-fill"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <strong>Placement:</strong> Absolute 2px strip at bottom edge of TitleBar. Never takes space.<br/>
+    <strong>Pros:</strong> Completely non-intrusive, always visible, very familiar pattern (browser loading bars, VS Code).<br/>
+    <strong>Cons:</strong> Easy to miss; no numbers; no tooltip without extra work.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MOCKUP B
+════════════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-label">Mockup B</div>
+      <div class="card-name">Pill badge — inline with model chip</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="titlebar" style="overflow:visible;">
+      <span style="font-size:16px">☰</span>
+      <span class="logo">Claudio</span>
+      <span class="ver">v0.4</span>
+      <span class="badge">claude-opus-4-6</span>
+      <!-- The pill -->
+      <div id="pill-b" class="ctx-pill">
+        <div class="pill-bar-track">
+          <div id="pill-b-fill" class="pill-bar-fill" style="width:35%"></div>
+        </div>
+        <span id="pill-b-label">70K</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="icon-btn">⌘</span>
+      <span class="icon-btn">⚙</span>
+    </div>
+  </div>
+  <div class="card-desc">
+    <strong>Placement:</strong> Immediately after the model badge in TitleBar.<br/>
+    <strong>Pros:</strong> Shows exact token estimate; compact; color-coded; hover for full detail tooltip.<br/>
+    <strong>Cons:</strong> Adds a bit of width to the titlebar; number may feel noisy for casual users.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MOCKUP C
+════════════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-label">Mockup C</div>
+      <div class="card-name">Input border glow — ambient heat map</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <p class="section-label">Below 50% — normal (no change)</p>
+    <div class="inputbar">
+      <textarea rows="1" placeholder="Message Claudio… (/ for skills)" readonly></textarea>
+      <div class="send-btn">↑</div>
+    </div>
+    <br/>
+    <p class="section-label">Current fill — border shifts based on slider</p>
+    <div id="inputbar-c" class="inputbar">
+      <textarea rows="1" placeholder="Message Claudio… (/ for skills)" readonly></textarea>
+      <div class="send-btn">↑</div>
+    </div>
+    <br/>
+    <p class="section-label">At 95% — strong red glow</p>
+    <div class="inputbar" style="border-color:rgba(239,68,68,0.65);box-shadow:0 0 0 1px rgba(239,68,68,0.4),0 0 12px rgba(239,68,68,0.12);">
+      <textarea rows="1" placeholder="Message Claudio… (/ for skills)" readonly></textarea>
+      <div class="send-btn">↑</div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <strong>Placement:</strong> The InputBar border + outer glow; purely visual, zero UI chrome added.<br/>
+    <strong>Pros:</strong> Most ambient and beautiful; feels like the app "warms up"; no numbers to distract.<br/>
+    <strong>Cons:</strong> No quantitative info; only signals urgency, not progress; subtle below 75%.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MOCKUP D
+════════════════════════════════════════════════════════ -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-label">Mockup D</div>
+      <div class="card-name">Segmented meter — toolbar row widget</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="titlebar">
+      <span style="font-size:16px">☰</span>
+      <span class="logo">Claudio</span>
+      <span class="ver">v0.4</span>
+      <span class="badge">claude-opus-4-6</span>
+      <span class="spacer"></span>
+      <span class="icon-btn">⌘</span>
+      <span class="icon-btn">⚙</span>
+    </div>
+    <div class="toolbar-row">
+      <!-- The meter -->
+      <div id="seg-d" class="seg-meter" title="">
+        <div class="seg-track" id="seg-track-d"></div>
+        <span id="seg-pct-d" class="seg-pct">35%</span>
+      </div>
+      <div class="toolbar-btn">♻️ Algo</div>
+      <div class="toolbar-btn">Debug</div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <strong>Placement:</strong> Left side of the toolbar row (above InputBar), alongside Algo + Debug buttons.<br/>
+    <strong>Pros:</strong> Most informative at a glance; percentage visible; tooltip can show token count; familiar meter pattern.<br/>
+    <strong>Cons:</strong> Takes horizontal space in the toolbar; can feel noisy on short sessions.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BONUS: A+B combined (recommendation)
+════════════════════════════════════════════════════════ -->
+<div class="card" style="border-color:rgba(96,165,250,0.25);">
+  <div class="card-header" style="border-bottom-color:rgba(96,165,250,0.15);">
+    <div>
+      <div class="card-label" style="color:var(--blue-400)">Recommendation</div>
+      <div class="card-name">A + B combined — hairline bar &amp; pill badge</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="titlebar" style="overflow:visible;">
+      <span style="font-size:16px">☰</span>
+      <span class="logo">Claudio</span>
+      <span class="ver">v0.4</span>
+      <span class="badge">claude-opus-4-6</span>
+      <div id="pill-rec" class="ctx-pill">
+        <div class="pill-bar-track">
+          <div id="pill-rec-fill" class="pill-bar-fill" style="width:35%"></div>
+        </div>
+        <span id="pill-rec-label">70K</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="icon-btn">⌘</span>
+      <span class="icon-btn">⚙</span>
+      <div id="bar-rec">
+        <div id="bar-rec-fill" style="height:100%;transition:width 0.4s ease,background-color 0.4s ease;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card-desc">
+    The pill gives exact numbers for power users. The hairline bar provides ambient awareness at all times.
+    Together they cover both reading modes without clutter.
+  </div>
+</div>
+
+<script>
+const CTX_MAX = 200_000;
+const SEGMENTS = 12;
+
+function ctxColor(pct) {
+  if (pct > 0.9)  return '#ef4444'; // red-500
+  if (pct > 0.75) return '#fb923c'; // orange-400
+  if (pct > 0.5)  return '#fbbf24'; // amber-400
+  return '#60a5fa';                 // blue-400
+}
+function ctxColorText(pct) {
+  if (pct > 0.9)  return { color: '#f87171', border: 'rgba(239,68,68,0.35)' };
+  if (pct > 0.75) return { color: '#fb923c', border: 'rgba(251,146,60,0.35)' };
+  if (pct > 0.5)  return { color: '#fbbf24', border: 'rgba(251,191,36,0.35)' };
+  return { color: '#64748b', border: 'rgba(255,255,255,0.07)' };
+}
+function tokLabel(pct) {
+  const t = Math.round(pct * CTX_MAX);
+  if (t >= 1000) return Math.round(t / 1000) + 'K';
+  return String(t);
+}
+
+// build seg meter
+const track = document.getElementById('seg-track-d');
+for (let i = 0; i < SEGMENTS; i++) {
+  const s = document.createElement('div');
+  s.className = 'seg';
+  s.id = `seg-d-${i}`;
+  track.appendChild(s);
+}
+
+function update(pct) {
+  const color = ctxColor(pct);
+  const tokens = Math.round(pct * CTX_MAX);
+  const tokStr = tokLabel(pct);
+
+  // Display
+  document.getElementById('pct-display').textContent = Math.round(pct * 100) + '%';
+  document.getElementById('pct-display').style.color = color;
+  document.getElementById('tok-display').textContent =
+    tokens.toLocaleString() + ' / 200,000 tokens (est.)';
+
+  // A — hairline
+  const fillA = document.getElementById('bar-a-fill');
+  fillA.style.width = (pct * 100) + '%';
+  fillA.style.backgroundColor = color;
+
+  const fillRec = document.getElementById('bar-rec-fill');
+  fillRec.style.width = (pct * 100) + '%';
+  fillRec.style.backgroundColor = color;
+
+  // B — pill
+  const { color: pillColor, border: pillBorder } = ctxColorText(pct);
+  const pillB = document.getElementById('pill-b');
+  pillB.style.color = pillColor;
+  pillB.style.borderColor = pillBorder;
+  document.getElementById('pill-b-fill').style.width = (pct * 100) + '%';
+  document.getElementById('pill-b-label').textContent = tokStr;
+
+  const pillRec = document.getElementById('pill-rec');
+  pillRec.style.color = pillColor;
+  pillRec.style.borderColor = pillBorder;
+  document.getElementById('pill-rec-fill').style.width = (pct * 100) + '%';
+  document.getElementById('pill-rec-label').textContent = tokStr;
+
+  // C — input border glow
+  const inputC = document.getElementById('inputbar-c');
+  if (pct < 0.5) {
+    inputC.style.borderColor = '';
+    inputC.style.boxShadow = '';
+  } else {
+    const t = (pct - 0.5) / 0.5;
+    // interpolate blue(59,130,246) → red(239,68,68)
+    const r = Math.round(59  + t * (239 - 59));
+    const g = Math.round(130 + t * (68  - 130));
+    const b = Math.round(246 + t * (68  - 246));
+    const alpha1 = 0.35 + t * 0.4;
+    const alpha2 = 0.25 + t * 0.35;
+    const glow   = 4   + t * 12;
+    inputC.style.borderColor = `rgba(${r},${g},${b},${alpha1})`;
+    inputC.style.boxShadow   = `0 0 0 1px rgba(${r},${g},${b},${alpha2}), 0 0 ${glow}px rgba(${r},${g},${b},0.08)`;
+  }
+
+  // D — segments
+  const filled = Math.round(pct * SEGMENTS);
+  for (let i = 0; i < SEGMENTS; i++) {
+    const s = document.getElementById(`seg-d-${i}`);
+    if (i < filled) {
+      s.style.backgroundColor = color;
+      s.style.opacity = '1';
+    } else {
+      s.style.backgroundColor = 'var(--surface-3)';
+      s.style.opacity = '1';
+    }
+  }
+  const segPct = document.getElementById('seg-pct-d');
+  segPct.textContent = Math.round(pct * 100) + '%';
+  segPct.style.color = color;
+  const segD = document.getElementById('seg-d');
+  segD.style.color = color;
+  segD.title = tokStr + ' / 200K tokens (estimated)';
+}
+
+const slider = document.getElementById('ctx-slider');
+slider.addEventListener('input', () => update(slider.value / 100));
+update(0.35);
+</script>
+</body>
+</html>

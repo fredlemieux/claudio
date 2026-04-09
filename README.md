@@ -174,6 +174,12 @@ A few architectural decisions that might be interesting:
 
 **Why extract hooks?** The original `useClaude` was 452 lines doing seven different jobs. Now it's ~250 lines focused on process orchestration, with `useDebugLog`, `useISC`, and `useAgentTracker` each owning their own state. Testable in isolation, readable at a glance.
 
+## Support
+
+If you find Claudio useful, you can buy me a beer:
+
+[![Buy Me a Beer](https://img.shields.io/badge/PayPal-Buy%20Me%20a%20Beer-blue?logo=paypal)](https://paypal.me/frederiquelemieux1)
+
 ## License
 
 MIT

@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudio - Thinking Display Mockups</title>
+<style>
+  :root {
+    --base: #0d1117;
+    --surface-1: #161b22;
+    --surface-2: #21262d;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-tertiary: #484f58;
+    --blue-400: #58a6ff;
+    --blue-500: #388bfd;
+    --blue-600: #1f6feb;
+    --purple-400: #bc8cff;
+    --purple-500: #8b5cf6;
+    --green-400: #3fb950;
+    --green-500: #238636;
+    --amber-400: #d29922;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    background: #000;
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ===== Top selector ===== */
+  .selector {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(13, 17, 23, 0.95); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 24px;
+  }
+  .selector h1 {
+    font-size: 14px; font-weight: 600; color: var(--text-secondary);
+    margin-right: 12px;
+  }
+  .selector button {
+    padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--text-secondary);
+    font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .selector button:hover { border-color: var(--blue-500); color: var(--text-primary); }
+  .selector button.active {
+    background: var(--blue-600); border-color: var(--blue-500);
+    color: white; font-weight: 600;
+  }
+
+  /* ===== Shared mockup frame ===== */
+  .mockup {
+    display: none; margin-top: 60px; min-height: calc(100vh - 60px);
+    background: var(--base);
+  }
+  .mockup.visible { display: flex; flex-direction: column; }
+
+  .chat-frame {
+    flex: 1; max-width: 800px; width: 100%; margin: 0 auto;
+    padding: 24px 16px; display: flex; flex-direction: column; gap: 16px;
+  }
+
+  /* Chat message bubbles */
+  .msg { display: flex; gap: 10px; }
+  .msg-avatar {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .msg-user .msg-avatar { background: var(--blue-600); color: white; }
+  .msg-assistant .msg-avatar { background: var(--purple-500); color: white; }
+  .msg-body {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; font-size: 14px;
+    line-height: 1.6; max-width: 90%;
+  }
+  .msg-user .msg-body { background: var(--surface-2); }
+  .msg-assistant .msg-body { border-color: rgba(139, 92, 246, 0.2); }
+
+  /* Input bar */
+  .input-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 24px 20px;
+    background: linear-gradient(transparent, var(--base) 20%);
+  }
+  .input-bar-inner {
+    max-width: 800px; margin: 0 auto;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: var(--text-tertiary);
+  }
+
+  /* ===== Phase indicator (shared) ===== */
+  .phase-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ===== OPTION A: Thought Stream ===== */
+
+  .thought-card {
+    margin-left: 38px; /* align with msg body */
+    animation: thoughtSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .thought-card-inner {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(88, 166, 255, 0.06));
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 10px;
+    padding: 10px 14px;
+    position: relative;
+    overflow: hidden;
+    max-width: 85%;
+  }
+
+  .thought-card-inner::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--purple-500), var(--blue-500), var(--purple-500));
+    background-size: 200% 100%;
+    animation: shimmerBar 2s linear infinite;
+  }
+
+  .thought-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  }
+  .thought-phase-icon { font-size: 14px; }
+  .thought-phase-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--purple-400);
+  }
+  .thought-phase-num {
+    font-size: 9px; color: var(--text-tertiary);
+    background: rgba(139, 92, 246, 0.15); padding: 1px 6px; border-radius: 4px;
+  }
+
+  .thought-text {
+    font-size: 12px; color: var(--text-secondary);
+    line-height: 1.5; font-style: italic;
+  }
+  .thought-text.typing::after {
+    content: '|';
+    animation: blink 0.8s step-end infinite;
+    color: var(--purple-400);
+    margin-left: 1px;
+  }
+
+  /* Collapsed state */
+  .thought-collapsed {
+    margin-left: 38px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-tertiary);
+    padding: 4px 0;
+    animation: thoughtSlideIn 0.3s ease;
+  }
+  .thought-collapsed .check { color: var(--green-400); }
+
+  /* Active thinking animation dots */
+  .thinking-dots {
+    display: inline-flex; gap: 3px; margin-left: 4px;
+  }
+  .thinking-dots span {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--purple-400);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* ===== OPTION B: Neural Pulse ===== */
+
+  .neural-panel {
+    position: fixed; right: 20px; top: 80px; width: 320px;
+    background: rgba(22, 27, 34, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 60px rgba(139, 92, 246, 0.05);
+    animation: panelSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .neural-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .neural-title {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .neural-title-text {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--purple-400);
+  }
+  .neural-brain {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    animation: brainPulse 2s ease-in-out infinite;
+  }
+  .neural-phase-pill {
+    font-size: 10px; background: rgba(88, 166, 255, 0.15);
+    color: var(--blue-400); padding: 3px 10px; border-radius: 12px;
+    font-weight: 600;
+  }
+
+  /* Waveform */
+  .neural-wave {
+    padding: 8px 16px;
+    display: flex; align-items: center; gap: 2px; height: 40px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  }
+  .wave-bar {
+    width: 3px; border-radius: 2px;
+    background: linear-gradient(to top, var(--purple-500), var(--blue-400));
+    animation: waveBar 1.2s ease-in-out infinite;
+  }
+
+  /* Thought stream in panel */
+  .neural-thoughts {
+    padding: 12px 16px;
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .neural-thought-item {
+    display: flex; gap: 8px; align-items: flex-start;
+    animation: thoughtFadeIn 0.5s ease;
+  }
+  .neural-thought-dot {
+    width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+  }
+  .neural-thought-dot.active {
+    background: var(--purple-400);
+    animation: dotGlow 1.5s ease-in-out infinite;
+  }
+  .neural-thought-dot.done {
+    background: var(--green-400); opacity: 0.5;
+  }
+  .neural-thought-text {
+    font-size: 11px; line-height: 1.5; color: var(--text-secondary);
+  }
+  .neural-thought-text.active { color: var(--text-primary); }
+  .neural-thought-text.faded { opacity: 0.4; }
+
+  .neural-thought-time {
+    font-size: 9px; color: var(--text-tertiary); margin-left: auto; flex-shrink: 0;
+  }
+
+  /* Phase progress at bottom */
+  .neural-progress {
+    padding: 10px 16px 14px;
+    border-top: 1px solid rgba(139, 92, 246, 0.1);
+  }
+  .neural-phase-track {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .neural-phase-node {
+    width: 8px; height: 8px; border-radius: 50%;
+    border: 1.5px solid var(--border); transition: all 0.3s;
+  }
+  .neural-phase-node.done {
+    background: var(--green-400); border-color: var(--green-400);
+  }
+  .neural-phase-node.active {
+    background: var(--purple-400); border-color: var(--purple-400);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+    animation: nodeGlow 1.5s ease-in-out infinite;
+  }
+  .neural-phase-line {
+    flex: 1; height: 2px; background: var(--border);
+  }
+  .neural-phase-line.done {
+    background: linear-gradient(90deg, var(--green-400), var(--green-400));
+  }
+  .neural-phase-line.active {
+    background: linear-gradient(90deg, var(--green-400), var(--purple-400));
+  }
+  .neural-phase-labels {
+    display: flex; justify-content: space-between; margin-top: 6px;
+  }
+  .neural-phase-lbl {
+    font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-tertiary); text-align: center; width: 32px;
+  }
+  .neural-phase-lbl.done { color: var(--green-400); opacity: 0.7; }
+  .neural-phase-lbl.active { color: var(--purple-400); font-weight: 700; }
+
+  /* ===== OPTION C: Phase Theater ===== */
+
+  .theater-bar {
+    position: fixed; bottom: 70px; left: 0; right: 0;
+    z-index: 50;
+    animation: theaterSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .theater-inner {
+    max-width: 800px; margin: 0 auto;
+    background: rgba(22, 27, 34, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.3), 0 0 40px rgba(139, 92, 246, 0.05);
+  }
+
+  /* Top: phase strip */
+  .theater-phases {
+    display: flex; align-items: center;
+    padding: 10px 16px;
+    gap: 4px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  }
+  .theater-phase {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 8px;
+    font-size: 10px; font-weight: 600;
+    color: var(--text-tertiary);
+    transition: all 0.3s;
+    position: relative;
+  }
+  .theater-phase.done {
+    color: var(--green-400); opacity: 0.6;
+  }
+  .theater-phase.active {
+    color: var(--purple-400);
+    background: rgba(139, 92, 246, 0.1);
+  }
+  .theater-phase.active::after {
+    content: '';
+    position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%);
+    width: 20px; height: 2px; border-radius: 1px;
+    background: var(--purple-400);
+  }
+  .theater-phase-arrow {
+    color: var(--text-tertiary); font-size: 8px; opacity: 0.3;
+  }
+
+  /* Middle: thinking ticker */
+  .theater-ticker {
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+    min-height: 48px;
+  }
+
+  .theater-ring {
+    width: 36px; height: 36px; position: relative; flex-shrink: 0;
+  }
+  .theater-ring svg {
+    width: 36px; height: 36px; transform: rotate(-90deg);
+  }
+  .theater-ring-bg { fill: none; stroke: var(--border); stroke-width: 2; }
+  .theater-ring-progress {
+    fill: none; stroke: url(#ringGrad); stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 88; /* ~circumference of r=14 */
+    stroke-dashoffset: 50; /* partially filled */
+    transition: stroke-dashoffset 0.5s ease;
+  }
+  .theater-ring-icon {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 14px;
+  }
+
+  /* Marquee */
+  .theater-marquee {
+    flex: 1; overflow: hidden; position: relative;
+    height: 36px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .theater-marquee-line {
+    font-size: 12px; line-height: 1.5;
+    animation: marqueeSlideUp 0.4s ease;
+  }
+  .theater-marquee-line.current {
+    color: var(--text-primary);
+  }
+  .theater-marquee-line.prev {
+    color: var(--text-tertiary); font-size: 11px;
+    opacity: 0.5;
+    position: absolute; top: -2px;
+    animation: marquueFadeOut 0.4s ease forwards;
+  }
+  .theater-marquee-line.current::after {
+    content: '';
+    display: inline-block; width: 6px; height: 14px;
+    background: var(--purple-400); margin-left: 2px;
+    vertical-align: text-bottom; border-radius: 1px;
+    animation: cursorBlink 1s step-end infinite;
+  }
+
+  .theater-elapsed {
+    font-size: 10px; color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  /* ===== Keyframes ===== */
+
+  @keyframes thoughtSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shimmerBar {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+  @keyframes dotPulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+  }
+  @keyframes panelSlideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes brainPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+  @keyframes waveBar {
+    0%, 100% { height: 4px; opacity: 0.3; }
+    50% { height: var(--h, 20px); opacity: 1; }
+  }
+  @keyframes thoughtFadeIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes dotGlow {
+    0%, 100% { box-shadow: 0 0 4px rgba(188, 140, 255, 0.3); }
+    50% { box-shadow: 0 0 10px rgba(188, 140, 255, 0.6); }
+  }
+  @keyframes nodeGlow {
+    0%, 100% { box-shadow: 0 0 4px rgba(139, 92, 246, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(139, 92, 246, 0.6); }
+  }
+  @keyframes theaterSlideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes marqueeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes marquueFadeOut {
+    from { opacity: 0.5; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-12px); }
+  }
+  @keyframes cursorBlink {
+    50% { opacity: 0; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Description box */
+  .option-desc {
+    max-width: 800px; margin: 0 auto;
+    padding: 16px; margin-bottom: 8px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .option-desc h2 {
+    font-size: 16px; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .option-desc p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .option-desc .tag {
+    display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 4px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    margin-right: 6px;
+  }
+  .tag-inline { background: rgba(88, 166, 255, 0.15); color: var(--blue-400); }
+  .tag-panel { background: rgba(139, 92, 246, 0.15); color: var(--purple-400); }
+  .tag-bar { background: rgba(59, 185, 80, 0.15); color: var(--green-400); }
+</style>
+</head>
+<body>
+
+<!-- Selector -->
+<div class="selector">
+  <h1>Thinking Display Mockups</h1>
+  <button class="active" onclick="show('a')">A: Thought Stream</button>
+  <button onclick="show('b')">B: Neural Pulse</button>
+  <button onclick="show('c')">C: Phase Theater</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- OPTION A: Thought Stream — Inline thinking cards in chat flow -->
+<!-- ============================================================ -->
+<div id="mockup-a" class="mockup visible">
+  <div class="chat-frame" style="padding-bottom: 100px;">
+    <div class="option-desc">
+      <h2>
+        <span class="tag tag-inline">Inline</span>
+        Option A: Thought Stream
+      </h2>
+      <p>
+        Thinking steps appear as <strong>subtle cards directly in the chat flow</strong>, visually distinct from regular messages.
+        Each card shows the phase, a summary of what's being considered, and a shimmer animation on the active thought.
+        Completed thoughts auto-collapse to a single line. The user sees a natural progression of reasoning
+        interspersed with the final output.
+      </p>
+    </div>
+
+    <!-- User message -->
+    <div class="msg msg-user">
+      <div class="msg-avatar">F</div>
+      <div class="msg-body">Analyze the authentication flow in our API and suggest improvements for token rotation.</div>
+    </div>
+
+    <!-- Collapsed past thought (OBSERVE) -->
+    <div class="thought-collapsed">
+      <span class="check">&#10003;</span>
+      <span>&#128065;&#65039; OBSERVE</span>
+      <span style="color: var(--text-tertiary)">&#8212; Scanned auth middleware, JWT config, and token lifecycle</span>
+    </div>
+
+    <!-- Collapsed past thought (THINK) -->
+    <div class="thought-collapsed">
+      <span class="check">&#10003;</span>
+      <span>&#129504; THINK</span>
+      <span style="color: var(--text-tertiary)">&#8212; Identified 3 rotation gaps, verified against OWASP guidelines</span>
+    </div>
+
+    <!-- Active thought card (PLAN) -->
+    <div class="thought-card">
+      <div class="thought-card-inner">
+        <div class="thought-header">
+          <span class="thought-phase-icon">&#128203;</span>
+          <span class="thought-phase-label">PLAN</span>
+          <span class="thought-phase-num">3 / 7</span>
+          <div class="thinking-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="thought-text typing">Designing a sliding-window rotation strategy that preserves active sessions while invalidating leaked tokens within the 15-minute refresh window</div>
+      </div>
+    </div>
+
+    <!-- Another active sub-thought -->
+    <div class="thought-card" style="animation-delay: 0.2s;">
+      <div class="thought-card-inner" style="border-color: rgba(88, 166, 255, 0.15); max-width: 70%;">
+        <div class="thought-text" style="font-size: 11px; color: var(--text-tertiary);">
+          Considering: should we use Redis TTL or DB-backed revocation list? Redis gives sub-ms lookups but adds infrastructure dependency...
+        </div>
+      </div>
+    </div>
+
+    <!-- Spacer for where output would start appearing -->
+    <div class="msg msg-assistant" style="opacity: 0.5;">
+      <div class="msg-avatar">G</div>
+      <div class="msg-body" style="border-style: dashed;">
+        <span style="color: var(--text-tertiary); font-style: italic;">Final output will stream here once BUILD phase begins...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-bar-inner">Ask Greg anything...</div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- OPTION B: Neural Pulse — Floating panel with live thinking    -->
+<!-- ============================================================ -->
+<div id="mockup-b" class="mockup">
+  <div class="chat-frame" style="padding-bottom: 100px; max-width: 600px;">
+    <div class="option-desc" style="max-width: 600px;">
+      <h2>
+        <span class="tag tag-panel">Panel</span>
+        Option B: Neural Pulse
+      </h2>
+      <p>
+        A <strong>floating side panel</strong> with brain-wave visualization shows thinking in real-time.
+        Thought fragments scroll through like a live feed. An audio-visualizer-style waveform pulses
+        to indicate active processing. The phase progress track at the bottom gives spatial orientation.
+        Chat stays clean &#8212; all thinking lives in the panel.
+      </p>
+    </div>
+
+    <!-- User message -->
+    <div class="msg msg-user">
+      <div class="msg-avatar">F</div>
+      <div class="msg-body">Analyze the authentication flow in our API and suggest improvements for token rotation.</div>
+    </div>
+
+    <!-- Streaming assistant message (clean, no thinking inline) -->
+    <div class="msg msg-assistant">
+      <div class="msg-avatar">G</div>
+      <div class="msg-body">
+        <div style="display: flex; align-items: center; gap: 8px; color: var(--purple-400); font-size: 13px;">
+          <div class="thinking-dots" style="margin-left: 0;">
+            <span></span><span></span><span></span>
+          </div>
+          <span style="font-style: italic;">Analyzing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Neural Panel (floating) -->
+  <div class="neural-panel">
+    <div class="neural-header">
+      <div class="neural-title">
+        <div class="neural-brain">&#129504;</div>
+        <span class="neural-title-text">Thinking</span>
+      </div>
+      <span class="neural-phase-pill">&#128203; PLAN</span>
+    </div>
+
+    <!-- Waveform -->
+    <div class="neural-wave">
+      <!-- 30 bars with varied heights -->
+      <div class="wave-bar" style="--h: 8px;  animation-delay: 0.0s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 14px; animation-delay: 0.1s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 22px; animation-delay: 0.15s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 16px; animation-delay: 0.2s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 28px; animation-delay: 0.25s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 20px; animation-delay: 0.3s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 10px; animation-delay: 0.35s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 24px; animation-delay: 0.4s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 18px; animation-delay: 0.45s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 26px; animation-delay: 0.5s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 12px; animation-delay: 0.55s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 20px; animation-delay: 0.6s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 30px; animation-delay: 0.65s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 16px; animation-delay: 0.7s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 22px; animation-delay: 0.75s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 8px;  animation-delay: 0.8s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 18px; animation-delay: 0.85s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 24px; animation-delay: 0.9s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 14px; animation-delay: 0.95s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 20px; animation-delay: 1.0s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 10px; animation-delay: 1.05s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 26px; animation-delay: 1.1s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 16px; animation-delay: 0.08s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 22px; animation-delay: 0.18s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 12px; animation-delay: 0.28s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 18px; animation-delay: 0.38s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 28px; animation-delay: 0.48s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 14px; animation-delay: 0.58s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 20px; animation-delay: 0.68s; width: 3px;"></div>
+      <div class="wave-bar" style="--h: 10px; animation-delay: 0.78s; width: 3px;"></div>
+    </div>
+
+    <!-- Thought stream -->
+    <div class="neural-thoughts">
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot done"></div>
+        <div class="neural-thought-text faded">Scanning auth/ directory... found 12 files, 3 middleware layers</div>
+        <span class="neural-thought-time">2s ago</span>
+      </div>
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot done"></div>
+        <div class="neural-thought-text faded">JWT config uses HS256 with 24h expiry, no refresh rotation</div>
+        <span class="neural-thought-time">2s ago</span>
+      </div>
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot done"></div>
+        <div class="neural-thought-text" style="opacity: 0.6;">Gap identified: tokens persist after password change</div>
+        <span class="neural-thought-time">1s ago</span>
+      </div>
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot done"></div>
+        <div class="neural-thought-text" style="opacity: 0.7;">Cross-referencing with OWASP Session Management Cheat Sheet</div>
+        <span class="neural-thought-time">1s ago</span>
+      </div>
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot active"></div>
+        <div class="neural-thought-text active">Designing sliding-window rotation: 15min access + 7d refresh pair</div>
+        <span class="neural-thought-time">now</span>
+      </div>
+      <div class="neural-thought-item">
+        <div class="neural-thought-dot active"></div>
+        <div class="neural-thought-text active" style="color: var(--purple-400);">
+          Evaluating: Redis TTL vs DB revocation list tradeoffs
+          <div class="thinking-dots" style="margin-top: 4px;">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <span class="neural-thought-time">now</span>
+      </div>
+    </div>
+
+    <!-- Phase progress -->
+    <div class="neural-progress">
+      <div class="neural-phase-track">
+        <div class="neural-phase-node done"></div>
+        <div class="neural-phase-line done"></div>
+        <div class="neural-phase-node done"></div>
+        <div class="neural-phase-line active"></div>
+        <div class="neural-phase-node active"></div>
+        <div class="neural-phase-line"></div>
+        <div class="neural-phase-node"></div>
+        <div class="neural-phase-line"></div>
+        <div class="neural-phase-node"></div>
+        <div class="neural-phase-line"></div>
+        <div class="neural-phase-node"></div>
+        <div class="neural-phase-line"></div>
+        <div class="neural-phase-node"></div>
+      </div>
+      <div class="neural-phase-labels">
+        <span class="neural-phase-lbl done">OBS</span>
+        <span class="neural-phase-lbl done">THK</span>
+        <span class="neural-phase-lbl active">PLN</span>
+        <span class="neural-phase-lbl">BLD</span>
+        <span class="neural-phase-lbl">EXE</span>
+        <span class="neural-phase-lbl">VER</span>
+        <span class="neural-phase-lbl">LRN</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-bar-inner">Ask Greg anything...</div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- OPTION C: Phase Theater — Bottom bar with ticker              -->
+<!-- ============================================================ -->
+<div id="mockup-c" class="mockup">
+  <div class="chat-frame" style="padding-bottom: 180px;">
+    <div class="option-desc">
+      <h2>
+        <span class="tag tag-bar">Bar</span>
+        Option C: Phase Theater
+      </h2>
+      <p>
+        A <strong>compact bar between chat and input</strong> acts as a stage for thinking.
+        The phase strip shows progression, a progress ring animates completion,
+        and a marquee-style ticker scrolls through thought fragments with a typewriter cursor.
+        Minimal footprint, maximum awareness. Auto-hides when the algorithm completes.
+      </p>
+    </div>
+
+    <!-- User message -->
+    <div class="msg msg-user">
+      <div class="msg-avatar">F</div>
+      <div class="msg-body">Analyze the authentication flow in our API and suggest improvements for token rotation.</div>
+    </div>
+
+    <!-- Streaming assistant (output starting) -->
+    <div class="msg msg-assistant">
+      <div class="msg-avatar">G</div>
+      <div class="msg-body">
+        <strong style="color: var(--text-primary);">Authentication Flow Analysis</strong><br><br>
+        <span style="color: var(--text-secondary);">After examining your auth middleware stack, I've identified three key areas where token rotation can be improved...</span>
+        <span style="color: var(--purple-400);">|</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theater Bar (fixed above input) -->
+  <div class="theater-bar">
+    <div class="theater-inner">
+      <!-- Phase strip -->
+      <div class="theater-phases">
+        <div class="theater-phase done">&#128065;&#65039; OBS <span style="color: var(--green-400);">&#10003;</span></div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase done">&#129504; THK <span style="color: var(--green-400);">&#10003;</span></div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase done">&#128203; PLN <span style="color: var(--green-400);">&#10003;</span></div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase active">&#128296; BUILD</div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase">&#9889; EXE</div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase">&#9989; VER</div>
+        <span class="theater-phase-arrow">&#9654;</span>
+        <div class="theater-phase">&#128218; LRN</div>
+      </div>
+
+      <!-- Ticker -->
+      <div class="theater-ticker">
+        <div class="theater-ring">
+          <svg viewBox="0 0 32 32">
+            <defs>
+              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color: #8b5cf6" />
+                <stop offset="100%" style="stop-color: #58a6ff" />
+              </linearGradient>
+            </defs>
+            <circle class="theater-ring-bg" cx="16" cy="16" r="14" />
+            <circle class="theater-ring-progress" cx="16" cy="16" r="14" />
+          </svg>
+          <span class="theater-ring-icon">&#128296;</span>
+        </div>
+
+        <div class="theater-marquee">
+          <div class="theater-marquee-line prev">Mapping token lifecycle: issue &#8594; validate &#8594; refresh &#8594; revoke</div>
+          <div class="theater-marquee-line current">Constructing dual-token architecture with sliding window refresh</div>
+        </div>
+
+        <div class="theater-elapsed">0:12</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-bar-inner">Ask Greg anything...</div>
+  </div>
+</div>
+
+
+<script>
+function show(id) {
+  document.querySelectorAll('.mockup').forEach(m => m.classList.remove('visible'));
+  document.querySelectorAll('.selector button').forEach(b => b.classList.remove('active'));
+  document.getElementById('mockup-' + id).classList.add('visible');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

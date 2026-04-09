@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Diff Mockups — Claudio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+  h1 { font-size: 16px; color: #8b949e; letter-spacing: 0.08em; text-transform: uppercase; }
+  h2 { font-size: 12px; color: #6e7681; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+  .section { display: flex; flex-direction: column; gap: 8px; max-width: 720px; }
+  .label { font-size: 11px; color: #6e7681; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+
+  /* Step item base */
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid;
+    font-size: 11px;
+  }
+  .step.tool  { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.2); }
+  .step.result { background: rgba(52,211,153,0.06); border-color: rgba(52,211,153,0.2); }
+  .icon {
+    width: 20px; height: 20px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+    background: #161b22;
+  }
+  .icon.tool { color: #fbbf24; }
+  .icon.result { color: #34d399; }
+  .step-body { flex: 1; min-width: 0; }
+  .step-header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .step-name { font-weight: 600; color: #fbbf24; }
+  .step-name.result { color: #34d399; }
+  .step-time { color: #6e7681; }
+  .step-summary { color: #8b949e; cursor: pointer; }
+  .step-summary:hover { color: #c9d1d9; }
+  .copy-btn {
+    flex-shrink: 0; padding: 2px 6px; border-radius: 4px;
+    background: #161b22; color: #6e7681; border: none; cursor: pointer;
+    font-size: 10px;
+  }
+  .copy-btn:hover { color: #8b949e; }
+
+  /* ─── Current state ──────────────────────────────────── */
+  .raw-expand {
+    margin-top: 6px;
+    font-family: monospace;
+    font-size: 10px;
+    color: #8b949e;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: #161b22;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #21262d;
+  }
+
+  /* ─── Option A: Inline diff ──────────────────────────── */
+  .diff-container {
+    margin-top: 6px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #21262d;
+  }
+  .diff-file-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+    font-family: monospace;
+    font-size: 10px;
+  }
+  .diff-filepath { color: #79c0ff; }
+  .diff-stats { display: flex; gap: 8px; }
+  .diff-added { color: #3fb950; }
+  .diff-removed { color: #f85149; }
+  .diff-line {
+    display: flex;
+    font-family: monospace;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .diff-line-num {
+    width: 32px;
+    text-align: right;
+    padding: 0 6px;
+    color: #6e7681;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .diff-line-sign {
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+  .diff-line-text {
+    flex: 1;
+    padding: 0 6px;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .diff-line.removed { background: rgba(248,81,73,0.1); }
+  .diff-line.removed .diff-line-sign { color: #f85149; }
+  .diff-line.removed .diff-line-text { color: #ffa198; }
+  .diff-line.added { background: rgba(63,185,80,0.1); }
+  .diff-line.added .diff-line-sign { color: #3fb950; }
+  .diff-line.added .diff-line-text { color: #7ee787; }
+  .diff-line.context { background: transparent; }
+  .diff-line.context .diff-line-sign { color: transparent; }
+  .diff-line.context .diff-line-text { color: #6e7681; }
+  .diff-hunk-header {
+    padding: 2px 8px;
+    background: rgba(56,139,253,0.1);
+    color: #79c0ff;
+    font-family: monospace;
+    font-size: 10px;
+    border-top: 1px solid #21262d;
+    border-bottom: 1px solid #21262d;
+  }
+
+  /* ─── Option B: Diff badge on collapsed ─────────────── */
+  .diff-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    background: #161b22;
+    border: 1px solid #21262d;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .diff-badge:hover { border-color: #fbbf24; }
+  .diff-badge .plus { color: #3fb950; }
+  .diff-badge .minus { color: #f85149; }
+  .diff-badge .filename { color: #8b949e; }
+
+  /* ─── Option C: Changes tab ──────────────────────────── */
+  .drawer-mock {
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 320px;
+  }
+  .drawer-tabs {
+    display: flex;
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+  }
+  .drawer-tab {
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #6e7681;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .drawer-tab.active { color: #c9d1d9; border-bottom-color: #fbbf24; }
+  .change-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #21262d;
+    cursor: pointer;
+  }
+  .change-item:hover { background: #161b22; }
+  .change-item:last-child { border-bottom: none; }
+  .change-op {
+    width: 18px; height: 18px;
+    border-radius: 3px;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .change-op.edit { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .change-op.write { background: rgba(56,139,253,0.15); color: #79c0ff; }
+  .change-op.read { background: rgba(139,148,158,0.15); color: #8b949e; }
+  .change-filename { font-family: monospace; font-size: 11px; color: #c9d1d9; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .change-stats { display: flex; gap: 4px; font-size: 10px; }
+
+  /* Divider */
+  .divider { width: 100%; height: 1px; background: #21262d; }
+  .note { font-size: 11px; color: #6e7681; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>Diff Mockups — Claudio StepRenderer</h1>
+
+<!-- ─── Current State ─────────────────────────────────── -->
+<div class="section">
+  <h2>Current — no diff</h2>
+  <p class="note">Edit tool steps just show truncated JSON. Hard to see what changed.</p>
+
+  <div class="step tool">
+    <div class="icon tool">U</div>
+    <div class="step-body">
+      <div class="step-header">
+        <span class="step-name">Edit</span>
+        <span class="step-time">14:22:05</span>
+      </div>
+      <div class="step-summary">Edit({"file_path":"src/components/SelectionPrompt.tsx","old_string":"  onClick={onCancel}\n  className=\"shrink-0 text-text-tertiary…</div>
+    </div>
+    <button class="copy-btn">⎘</button>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── Option A: Inline unified diff ────────────────────── -->
+<div class="section">
+  <h2>Option A — Inline unified diff (expanded)</h2>
+  <p class="note">Click the summary line to expand. Shows a git-style diff inline in the step.</p>
+
+  <div class="step tool">
+    <div class="icon tool">U</div>
+    <div class="step-body">
+      <div class="step-header">
+        <span class="step-name">Edit</span>
+        <span class="step-time">14:22:05</span>
+      </div>
+      <!-- Collapsed summary with diff stats inline -->
+      <div class="step-summary" style="display:flex;align-items:center;gap:6px;">
+        <span style="font-family:monospace;color:#79c0ff">SelectionPrompt.tsx</span>
+        <span style="color:#3fb950;font-size:10px">+8</span>
+        <span style="color:#f85149;font-size:10px">-3</span>
+        <span style="color:#6e7681;font-size:10px">▾ expand</span>
+      </div>
+      <!-- Expanded diff -->
+      <div class="diff-container" style="margin-top:8px;">
+        <div class="diff-file-header">
+          <span class="diff-filepath">src/components/SelectionPrompt.tsx</span>
+          <span class="diff-stats">
+            <span class="diff-added">+8</span>
+            <span class="diff-removed">-3</span>
+          </span>
+        </div>
+        <div class="diff-hunk-header">@@ -101,7 +101,12 @@</div>
+        <div class="diff-line context">
+          <span class="diff-line-num">101</span>
+          <span class="diff-line-sign"> </span>
+          <span class="diff-line-text">          {onCancel && (</span>
+        </div>
+        <div class="diff-line removed">
+          <span class="diff-line-num">102</span>
+          <span class="diff-line-sign">-</span>
+          <span class="diff-line-text">            &lt;button onClick={onCancel}</span>
+        </div>
+        <div class="diff-line removed">
+          <span class="diff-line-num">103</span>
+          <span class="diff-line-sign">-</span>
+          <span class="diff-line-text">              className="shrink-0 text-text-tertiary hover:text-text-secondary transition-colors text-xs mt-1"</span>
+        </div>
+        <div class="diff-line removed">
+          <span class="diff-line-num">104</span>
+          <span class="diff-line-sign">-</span>
+          <span class="diff-line-text">              title="Dismiss (Esc)"</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">            &lt;button onClick={armEscape}</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">              className={`shrink-0 transition-colors text-xs mt-1 ${</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">                escapeArmed</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">                  ? "text-amber-400 hover:text-amber-300"</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">                  : "text-text-tertiary hover:text-text-secondary"</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">              }`}</span>
+        </div>
+        <div class="diff-line added">
+          <span class="diff-line-num"></span>
+          <span class="diff-line-sign">+</span>
+          <span class="diff-line-text">              title="Dismiss (Esc Esc)"</span>
+        </div>
+        <div class="diff-line context">
+          <span class="diff-line-num">108</span>
+          <span class="diff-line-sign"> </span>
+          <span class="diff-line-text">            &gt;</span>
+        </div>
+        <div class="diff-line context">
+          <span class="diff-line-num">109</span>
+          <span class="diff-line-sign"> </span>
+          <span class="diff-line-text">              ✕</span>
+        </div>
+      </div>
+    </div>
+    <button class="copy-btn">⎘</button>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── Option B: Diff badge (collapsed), full diff on click ── -->
+<div class="section">
+  <h2>Option B — Collapsed diff badge · click to expand overlay</h2>
+  <p class="note">Step stays compact. Badge shows +/- at a glance. Click opens a floating diff overlay.</p>
+
+  <div class="step tool">
+    <div class="icon tool">U</div>
+    <div class="step-body">
+      <div class="step-header">
+        <span class="step-name">Edit</span>
+        <span class="step-time">14:22:05</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+        <span class="step-summary" style="flex:1">SelectionPrompt.tsx — armEscape + amber styling on ✕ button</span>
+        <span class="diff-badge">
+          <span class="filename">diff</span>
+          <span class="plus">+8</span>
+          <span class="minus">-3</span>
+        </span>
+      </div>
+    </div>
+    <button class="copy-btn">⎘</button>
+  </div>
+
+  <!-- Mock of the overlay that appears when badge is clicked -->
+  <div style="margin-top:4px;border:1px dashed #30363d;border-radius:8px;padding:12px;">
+    <p class="note" style="margin-bottom:8px;">↑ clicking "diff" badge opens this floating diff overlay:</p>
+    <div class="diff-container" style="max-height:240px;overflow-y:auto;">
+      <div class="diff-file-header">
+        <span class="diff-filepath">src/components/SelectionPrompt.tsx</span>
+        <span class="diff-stats">
+          <span class="diff-added">+8</span>
+          <span class="diff-removed">-3</span>
+        </span>
+      </div>
+      <div class="diff-hunk-header">@@ -101,7 +101,12 @@</div>
+      <div class="diff-line context"><span class="diff-line-num">101</span><span class="diff-line-sign"> </span><span class="diff-line-text">          {onCancel && (</span></div>
+      <div class="diff-line removed"><span class="diff-line-num">102</span><span class="diff-line-sign">-</span><span class="diff-line-text">            &lt;button onClick={onCancel}</span></div>
+      <div class="diff-line removed"><span class="diff-line-num">103</span><span class="diff-line-sign">-</span><span class="diff-line-text">              className="shrink-0 text-text-tertiary..."</span></div>
+      <div class="diff-line removed"><span class="diff-line-num">104</span><span class="diff-line-sign">-</span><span class="diff-line-text">              title="Dismiss (Esc)"</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">            &lt;button onClick={armEscape}</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">              className={`shrink-0 transition-colors text-xs mt-1 ${</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">                escapeArmed ? "text-amber-400 hover:text-amber-300"</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">                : "text-text-tertiary hover:text-text-secondary"</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">              }`}</span></div>
+      <div class="diff-line added"><span class="diff-line-num"></span><span class="diff-line-sign">+</span><span class="diff-line-text">              title="Dismiss (Esc Esc)"</span></div>
+      <div class="diff-line context"><span class="diff-line-num">108</span><span class="diff-line-sign"> </span><span class="diff-line-text">            &gt;</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── Option C: Changes drawer tab ─────────────────────── -->
+<div class="section">
+  <h2>Option C — "Changes" tab in the side drawer</h2>
+  <p class="note">All file edits aggregated in a dedicated drawer tab. Steps stay unchanged. Click any row to see diff.</p>
+
+  <div class="drawer-mock">
+    <div class="drawer-tabs">
+      <div class="drawer-tab">Agents</div>
+      <div class="drawer-tab">ISC</div>
+      <div class="drawer-tab active">Changes <span style="color:#6e7681;font-size:10px">(4)</span></div>
+    </div>
+    <div>
+      <div class="change-item">
+        <div class="change-op edit">E</div>
+        <span class="change-filename">SelectionPrompt.tsx</span>
+        <span class="change-stats"><span style="color:#3fb950">+8</span> <span style="color:#f85149">-3</span></span>
+      </div>
+      <div class="change-item">
+        <div class="change-op edit">E</div>
+        <span class="change-filename">SelectionPrompt.tsx</span>
+        <span class="change-stats"><span style="color:#3fb950">+5</span> <span style="color:#f85149">-1</span></span>
+      </div>
+      <div class="change-item">
+        <div class="change-op write">W</div>
+        <span class="change-filename">ContextMeter.tsx</span>
+        <span class="change-stats"><span style="color:#3fb950">+55</span></span>
+      </div>
+      <div class="change-item">
+        <div class="change-op read">R</div>
+        <span class="change-filename">App.tsx</span>
+        <span class="change-stats" style="color:#6e7681">read</span>
+      </div>
+    </div>
+  </div>
+  <p class="note">Pro: clean separation. Con: need to leave the message stream to see changes.</p>
+</div>
+
+<div class="divider"></div>
+
+<!-- Summary -->
+<div class="section">
+  <h2>Recommendation</h2>
+  <p style="color:#8b949e;line-height:1.7;">
+    <strong style="color:#c9d1d9">A (inline)</strong> is the most contextual — you see the diff right where the tool call happened.<br>
+    <strong style="color:#c9d1d9">B (badge)</strong> keeps the stream compact and only shows detail on demand.<br>
+    <strong style="color:#c9d1d9">C (drawer tab)</strong> is most like a real IDE "Source Control" panel — best if you want a full change summary after the run.<br><br>
+    B or A+C combo is probably ideal: badge inline + aggregated tab for the full session diff.
+  </p>
+</div>
+
+</body>
+</html>
