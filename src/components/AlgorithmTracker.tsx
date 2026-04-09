@@ -179,14 +179,19 @@ export function parseAlgorithmState(content: string): {
     }
   }
 
-  // Extract ISC criteria from content
+  // Extract ISC criteria from content — handles multiple formats:
+  //   ISC-1: description
+  //   - ISC-1: description
+  //   - [ ] ISC-1: description
+  //   - [x] ISC-1: description
+  //   | ISC-1 | description | status |
   const criteria: ISCriterion[] = [];
-  const iscPattern = /(?:- \[([ x])\] )?(ISC-(?:C|A)?\d+):\s*(.+?)(?:\s*\||\n|$)/g;
+  const iscPattern = /(?:[-*]\s+)?(?:\[([ x])\]\s+)?(ISC-[A-Z]?\d+):\s*(.+?)(?:\s*\||\n|$)/gi;
   let match;
   while ((match = iscPattern.exec(content)) !== null) {
     const checked = match[1] === "x";
     criteria.push({
-      id: match[2],
+      id: match[2].toUpperCase(),
       description: match[3].trim(),
       status: checked ? "completed" : "pending",
     });
