@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, memo } from "react";
 import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "../layout";
 import { MessageContent } from "../components/MessageContent";
 import { StepRenderer } from "../components/StepRenderer";
@@ -53,7 +53,7 @@ function MessageName({ role, timestamp }: { role: "user" | "assistant"; timestam
   );
 }
 
-export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, drawerOpen, algoPhases, activeQuestion, onAnswerQuestion, onCancelQuestion, onSendMessage }: MessageListProps) {
+export const MessageList = memo(function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, drawerOpen, algoPhases, activeQuestion, onAnswerQuestion, onCancelQuestion, onSendMessage }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -160,4 +160,4 @@ export function MessageList({ messages, isStreaming, toolCalls, sidebarOpen, dra
       </div>
     </div>
   );
-}
+});
