@@ -182,14 +182,17 @@ function StepItem({ step, autoExpand }: { step: StreamStep; autoExpand: boolean 
     }
   }, [autoExpand]);
 
+  const isExpandable = editData?.kind !== "read";
   const expanded = userExpanded !== null ? userExpanded : autoExpand;
-  const toggle = editData
-    ? () => setUserExpanded((e) => (e === null ? !autoExpand : !e))
-    : () => setUserExpanded((e) => (e === null ? true : !e));
+  const toggle = !isExpandable
+    ? undefined
+    : editData
+      ? () => setUserExpanded((e) => (e === null ? !autoExpand : !e))
+      : () => setUserExpanded((e) => (e === null ? true : !e));
 
   return (
     <div
-      className={`flex items-start gap-2 px-2 py-1 rounded border ${style.bg} text-[11px] cursor-pointer select-none`}
+      className={`flex items-start gap-2 px-2 py-1 rounded border ${style.bg} text-[11px] ${isExpandable ? "cursor-pointer select-none" : ""}`}
       onClick={toggle}
     >
       <span className={`shrink-0 w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold ${style.color} bg-surface-1`}>
@@ -206,7 +209,9 @@ function StepItem({ step, autoExpand }: { step: StreamStep; autoExpand: boolean 
           </span>
         </div>
 
-        {editData ? (
+        {editData?.kind === "read" ? (
+          <span className="font-mono text-[10px] text-text-tertiary truncate">{shortPath(editData.filePath)}</span>
+        ) : editData ? (
           <div className="flex items-center gap-2 mt-0.5">
             <span className="font-mono text-[10px] text-blue-400 truncate">{shortPath(editData.filePath)}</span>
             {editData.kind === "edit" && editData.diff.added > 0 && (
@@ -218,9 +223,6 @@ function StepItem({ step, autoExpand }: { step: StreamStep; autoExpand: boolean 
             {editData.kind === "write" && (
               <span className="text-[10px] text-green-400 shrink-0">+{editData.lines}</span>
             )}
-            {editData.kind === "read" && (
-              <span className="text-[10px] text-text-tertiary shrink-0">read</span>
-            )}
             <span className="text-text-tertiary text-[9px] shrink-0">{expanded ? "▴" : "▾"}</span>
           </div>
         ) : (
@@ -229,7 +231,7 @@ function StepItem({ step, autoExpand }: { step: StreamStep; autoExpand: boolean 
           </span>
         )}
 
-        {expanded && editData && (
+        {expanded && editData && editData.kind !== "read" && (
           <div onClick={(e) => e.stopPropagation()}>
             <DiffView data={editData} />
           </div>
