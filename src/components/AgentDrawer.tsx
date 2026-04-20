@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, type JSX } from "react";
+import { useState, useEffect, useRef, useCallback, type JSX } from "react";
+import { Command } from "@tauri-apps/plugin-shell";
 import {
   IconCodeBrackets, IconMagnifyingGlass, IconBook, IconGrid, IconSparkle,
   IconCheckmark, IconXMark, IconChevronDown, IconClose,
@@ -113,6 +114,46 @@ function StatusIcon({ status }: { status: AgentInfo["status"] }) {
   return <IconXMark className="w-4 h-4 text-red-400 shrink-0" />;
 }
 
+// ─── File Output Reader ─────────────────────────────────────────────
+
+/** Detects "Output: /some/path" pattern and returns the path, or null */
+function parseOutputFilePath(output: string): string | null {
+  const m = output.match(/^Output:\s*(\/\S+)/);
+  return m ? m[1] : null;
+}
+
+function FileOutput({ filePath }: { filePath: string }) {
+  const [contents, setContents] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const read = useCallback(() => {
+    setLoading(true);
+    Command.create("sh", ["-c", `cat "${filePath}"`])
+      .execute()
+      .then((r) => setContents(r.stdout || r.stderr || "(empty file)"))
+      .catch((e) => setContents(`Error reading file: ${String(e)}`))
+      .finally(() => setLoading(false));
+  }, [filePath]);
+
+  useEffect(() => { read(); }, [read]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] text-text-tertiary break-all">{filePath}</span>
+        <button onClick={read} className="shrink-0 text-[10px] text-text-tertiary hover:text-text-interactive transition-colors" title="Reload file">↺</button>
+      </div>
+      {loading ? (
+        <span className="text-text-tertiary italic text-[10px]">Reading…</span>
+      ) : (
+        <pre className="text-[11px] text-text-interactive bg-base/80 border border-border rounded p-2 whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto">
+          {contents}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 // ─── Agent Detail Modal ─────────────────────────────────────────────
 
 function AgentDetailModal({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
@@ -203,16 +244,22 @@ function AgentDetailModal({ agent, onClose }: { agent: AgentInfo; onClose: () =>
                 </span>
               )}
             </div>
-            <pre
-              ref={outputRef}
-              className="text-[11px] text-text-interactive bg-base/80 border border-border rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto"
-            >
-              {agent.output || (
-                <span className="text-text-tertiary italic">
-                  {agent.status === "running" ? "Waiting for output..." : "No output captured"}
-                </span>
-              )}
-            </pre>
+            {agent.output && parseOutputFilePath(agent.output) ? (
+              <div className="bg-base/80 border border-border rounded-lg p-3">
+                <FileOutput filePath={parseOutputFilePath(agent.output)!} />
+              </div>
+            ) : (
+              <pre
+                ref={outputRef}
+                className="text-[11px] text-text-interactive bg-base/80 border border-border rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto"
+              >
+                {agent.output || (
+                  <span className="text-text-tertiary italic">
+                    {agent.status === "running" ? "Waiting for output..." : "No output captured"}
+                  </span>
+                )}
+              </pre>
+            )}
           </div>
         </div>
         <div className="px-5 py-3 border-t border-border">
@@ -293,16 +340,22 @@ function AgentCard({ agent, onSelect }: { agent: AgentInfo; onSelect: () => void
               </span>
             )}
           </div>
-          <pre
-            ref={outputRef}
-            className="text-[11px] text-text-interactive px-3 py-2 whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto bg-base/80"
-          >
-            {agent.output || (
-              <span className="text-text-tertiary italic">
-                {agent.status === "running" ? "Waiting for output..." : "No output captured"}
-              </span>
-            )}
-          </pre>
+          {agent.output && parseOutputFilePath(agent.output) ? (
+            <div className="px-3 py-2 bg-base/80">
+              <FileOutput filePath={parseOutputFilePath(agent.output)!} />
+            </div>
+          ) : (
+            <pre
+              ref={outputRef}
+              className="text-[11px] text-text-interactive px-3 py-2 whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto bg-base/80"
+            >
+              {agent.output || (
+                <span className="text-text-tertiary italic">
+                  {agent.status === "running" ? "Waiting for output..." : "No output captured"}
+                </span>
+              )}
+            </pre>
+          )}
         </div>
       )}
     </div>

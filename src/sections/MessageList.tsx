@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, memo } from "react";
+import { useEffect, useRef, useCallback, useState, memo } from "react";
 import { SIDEBAR_MARGIN, DRAWER_MARGIN } from "../layout";
 import { MessageContent } from "../components/MessageContent";
 import { StepRenderer } from "../components/StepRenderer";
@@ -20,6 +20,42 @@ interface MessageListProps {
   onAnswerQuestion: (answer: string) => void;
   onCancelQuestion: () => void;
   onSendMessage: (text: string) => void;
+}
+
+function CopyButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = content;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [content]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1 p-1 rounded text-text-tertiary hover:text-text-interactive hover:bg-surface-hover"
+      title="Copy message"
+    >
+      {copied ? (
+        <span className="text-[10px] text-green-400 font-medium">✓</span>
+      ) : (
+        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="5" y="5" width="9" height="9" rx="1.5" />
+          <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 function MessageAvatar({ role }: { role: "user" | "assistant" }) {
@@ -99,10 +135,11 @@ export const MessageList = memo(function MessageList({ messages, isStreaming, to
               )}
 
               {/* Message */}
-              <div className="flex items-start gap-3 py-2 animate-fade-in-up">
+              <div className="group flex items-start gap-3 py-2 animate-fade-in-up">
                 <MessageAvatar role={msg.role} />
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex gap-1">
+                  <div className="flex-1 min-w-0">
                   <MessageName role={msg.role} timestamp={msg.timestamp} />
 
                   {/* Message body */}
@@ -151,6 +188,8 @@ export const MessageList = memo(function MessageList({ messages, isStreaming, to
                       {msg.costUsd !== undefined && <span>${msg.costUsd.toFixed(4)}</span>}
                     </div>
                   )}
+                  </div>
+                  {msg.content && !isStreamingThis && <CopyButton content={msg.content} />}
                 </div>
               </div>
             </div>

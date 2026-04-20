@@ -127,6 +127,7 @@ function DiffView({ data }: { data: EditData }) {
         </span>
       </div>
       <div className="overflow-x-auto max-h-[260px] overflow-y-auto">
+        <div className="min-w-max">
         {diff.lines.map((line, idx) => (
           <div
             key={idx}
@@ -150,7 +151,7 @@ function DiffView({ data }: { data: EditData }) {
               {line.type === "added" ? "+" : line.type === "removed" ? "−" : " "}
             </span>
             <span
-              className={`px-1.5 whitespace-pre overflow-hidden text-ellipsis ${
+              className={`px-1.5 whitespace-pre ${
                 line.type === "added"
                   ? "text-green-300"
                   : line.type === "removed"
@@ -162,6 +163,7 @@ function DiffView({ data }: { data: EditData }) {
             </span>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );
