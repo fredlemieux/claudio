@@ -185,7 +185,7 @@ function App() {
         isStreaming={claude.isStreaming}
         model={settings.model}
         onToggleSidebar={() => setSidebarOpen((o) => !o)}
-        onSelectSession={(id) => { switchSession(id); setSidebarOpen(false); }}
+        onSelectSession={(id) => { claude.stopStreaming(); switchSession(id); setSidebarOpen(false); }}
         onNewChat={() => { handleNewChat(); setSidebarOpen(false); }}
         onDeleteSession={deleteSession}
         onPickDirectory={pickDirectory}
@@ -196,7 +196,7 @@ function App() {
       {messages.length === 0 ? (
         <WelcomeScreen
           sessions={sessions}
-          onSwitchSession={switchSession}
+          onSwitchSession={(id) => { claude.stopStreaming(); switchSession(id); }}
           onSetInput={setInput}
           onFocusInput={() => inputRef.current?.focus()}
         />

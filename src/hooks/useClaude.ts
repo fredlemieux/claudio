@@ -147,6 +147,9 @@ export function useClaude({
           m.id === assistantMsg.id ? { ...m, costUsd, durationMs } : m
         );
         updateMessages(sessionId!, latestMessages);
+        // Belt-and-suspenders: clear streaming state here so the UI never gets
+        // stuck if the Tauri close event is delayed or silently dropped.
+        setIsStreaming(false);
       },
       onSessionId: (id) => setClaudeSessionId(sessionId!, id),
       getBuffer: buf.getContent,
