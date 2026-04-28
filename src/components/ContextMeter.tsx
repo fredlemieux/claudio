@@ -1,5 +1,7 @@
 const SEGMENTS = 12;
 const CTX_MAX = 200_000;
+// Blended Sonnet rate: input $3/MTok + ~20% output at $15/MTok ≈ $4/MTok
+const COST_PER_TOKEN = 4e-6;
 
 function segColor(pct: number): string {
   if (pct > 0.9)  return "bg-red-500";
@@ -15,8 +17,17 @@ function textColor(pct: number): string {
   return "text-text-tertiary";
 }
 
-/** Estimate token count from total message character length. */
-export function estimateTokens(messages: Array<{ content?: string }>): number {
+/**
+ * Estimate token count from messages.
+ * Prefers cost-based estimation when costUsd is available — it accounts for
+ * system prompts, tool results, and thinking blocks that aren't in content.
+ * Falls back to character counting otherwise.
+ */
+export function estimateTokens(messages: Array<{ content?: string; costUsd?: number }>): number {
+  const totalCostUsd = messages.reduce((sum, m) => sum + (m.costUsd ?? 0), 0);
+  if (totalCostUsd > 0) {
+    return Math.min(Math.round(totalCostUsd / COST_PER_TOKEN), CTX_MAX);
+  }
   const chars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
   return Math.min(Math.round(chars / 4), CTX_MAX);
 }
@@ -31,7 +42,8 @@ export function ContextMeter({ tokens }: ContextMeterProps) {
   const pct = tokens / CTX_MAX;
   const filled = Math.round(pct * SEGMENTS);
   const color = segColor(pct);
-  const label = tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : String(tokens);
+  const tokenLabel = tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : String(tokens);
+  const label = `${tokenLabel} · ${Math.round(pct * 100)}%`;
   const tooltip = `Context: ~${tokens.toLocaleString()} / ${CTX_MAX.toLocaleString()} tokens (${Math.round(pct * 100)}%)`;
 
   return (
